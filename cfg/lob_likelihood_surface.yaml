@@ -1,0 +1,90 @@
+# The identification diagnostic for Spike 1.2 — the likelihood surface alone, with
+# no sampler anywhere.
+#
+# WHY THIS EXISTS SEPARATELY. When cfg/lob_recovery.yaml fails to recover a
+# parameter there are two possible causes, and they call for opposite responses:
+# the parameter is not identifiable from the observables (fix the model or the
+# observables), or it is identifiable and the sampler cannot find it (fix the
+# inference). PLAN.md's Spike 1.2 branches split exactly there — "recovery fails
+# generally → stop, the parameterisation is wrong" versus "ESS collapses →
+# methodology decision" — so the two have to be told apart with evidence rather
+# than argued about.
+#
+# This config answers it directly. It is cfg/lob_recovery.yaml's comparison with
+# `sampled` as a FIXED param instead of a posterior sample, so evaluating it at
+# several values traces the log-likelihood surface. If the surface peaks at the true
+# value, the parameter is identified and any recovery failure is the sampler's.
+#
+# pkg/recovery evaluates it at the truth and at 0.6x / 1.67x each parameter, and
+# reports the peak's advantage in nats.
+data:
+  steps: 500
+  timestep: 1.0
+  partitions:
+  - name: lob_flow
+    params:
+      limit_rate: [1.2]
+      cancel_rate: [0.15]
+      market_rate: [0.8]
+      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      half: [0.5]
+    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+    state_history_depth: 1
+    seed: 20260728
+  expressions:
+  - partition: lob_flow
+    fields:
+    - {name: q, width: 6}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    bindings:
+    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+    - {name: mkt_ask, expr: "mkt - mkt_bid"}
+    - {name: resting, expr: "q - cancels + arrivals"}
+    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+    outputs:
+    - "resting - takes"
+    - "sum(arrivals)"
+    - "sum(cancels)"
+    - "mkt"
+    - "sum(q)"
+macros:
+- type: likelihood_comparison
+  name: lob_likelihood
+  model:
+    likelihood: {type: poisson}
+    params_from_upstream:
+      mean: {upstream: lob_intensity}
+  data: {partition_name: lob_flow, value_indices: [6, 7, 8]}
+  window:
+    data: [{partition_name: lob_flow}]
+    depth: 100
+    partitions:
+    - partition:
+        name: lob_intensity
+        iteration:
+          type: expression
+          fields: [{name: lam, width: 3}]
+          outputs:
+          - "max(concat(sampled[0] * num_levels * dt,
+                        sampled[1] * observed[9] * dt,
+                        sampled[2] * dt), floor)"
+        params:
+          # The parameter vector under test. pkg/recovery substitutes this line.
+          sampled: [1.2, 0.15, 0.8]
+          observed: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          num_levels: [6.0]
+          floor: [0.000001]
+        params_from_upstream:
+          observed: {upstream: lob_flow}
+        init_state_values: [0.0, 0.0, 0.0]
+        state_history_depth: 1
+        seed: 0
+  # MUST equal the window depth, not the run length — see cfg/lob_recovery.yaml.
+  window_data_history_depth: {lob_flow: 100}

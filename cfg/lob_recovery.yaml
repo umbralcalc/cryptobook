@@ -1,0 +1,190 @@
+# Phase 1 — synthetic parameter recovery, as a single config.
+#
+# PLAN.md Spike 1.2: verify the inference stack can recover known parameters from
+# its own generative process. If it cannot, no result against real data means
+# anything, so this is the anchor for every later phase.
+#
+# It is one file with two halves:
+#
+#   data:    runs cfg/lob_generator.yaml's model as a sub-simulation with the
+#            parameters set to KNOWN values — the recovery target.
+#   macros:  expands posterior_estimation into the ~5 partitions that do online
+#            Bayesian recovery of those parameters from the generated flow.
+#
+# Nothing here is Go. `stochadex --config cfg/lob_recovery.yaml` resolves and runs
+# it in-process.
+#
+# ── HOW THE RECOVERY IS MADE DECISIVE ─────────────────────────────────────────
+#
+# The posterior mean is a loglike-weighted average of the SAMPLED parameters, so
+# the loglike has to depend on the sample or the mean just random-walks. The
+# engine panics if that coupling is absent (it names this "the classic
+# silently-degenerate posterior_estimation config"), and there are two accepted
+# ways to supply it. This config uses the harder one on purpose.
+#
+# The easy way — comparison.model reads the sampler directly, so the sample IS the
+# likelihood's mean — would reduce this to recovering three Poisson rates from
+# three count streams. That would pass without ever exercising the queue-state
+# coupling, which is the part that carries the stability question.
+#
+# So instead: an inner window partition (`intensity`) consumes the sampler as an
+# OutsideUpstream, combines it with the REPLAYED observed depth, and the
+# comparison scores the observed counts against what that partition produces:
+#
+#   E[n_limit]  = limit_rate  · num_levels · dt          (depth-independent)
+#   E[n_cancel] = cancel_rate · depth_start · dt         ← the coupling
+#   E[n_market] = market_rate · dt                       (depth-independent)
+#
+# cancel_rate is therefore identifiable ONLY through the second line — through a
+# covariate that varies step to step. A sampler that cannot recover it cannot do
+# the Phase 2 job either, which is exactly what this test is for.
+#
+# ── TUNING LEVERS (what decides convergence, not just running) ────────────────
+#
+#   - The prior at [0.4, 0.05, 0.3] is deliberately off-truth (~1/3 of every true
+#     value), so convergence cannot be an artifact of starting at the answer.
+#   - default_covariance gives per-dimension proposal sd of [0.6, 0.08, 0.4].
+#     The three rates differ in scale by ~10x, so a shared width would be far too
+#     wide for cancel_rate and too narrow for limit_rate. Each is ~1.3 sd from
+#     prior to truth: explorable without flailing.
+#   - past_discount 0.999 — near 1 so evidence accumulates rather than being
+#     forgotten each step.
+#   - cov_burn_in_steps 200 — use the fixed proposal width until the posterior
+#     variance is worth trusting, then adapt to it.
+data:
+  steps: 2000
+  timestep: 1.0
+  partitions:
+  - name: lob_flow
+    params:
+      # THE RECOVERY TARGET. Keep in sync with the truth asserted in
+      # pkg/recovery/behaviour.go — that file is the single source of both.
+      limit_rate: [1.2]
+      cancel_rate: [0.15]
+      market_rate: [0.8]
+      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      half: [0.5]
+    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+    # 1 is enough: the generator's expression reads only its own current fields.
+    # The window replay does NOT come from here — it comes from storage, with its
+    # own history depth set by window_data_history_depth below.
+    state_history_depth: 1
+    seed: 20260728
+  expressions:
+  # Identical to cfg/lob_generator.yaml's block. Duplicated rather than included
+  # because a config is one self-contained document; if they diverge, the
+  # equivalence subtest in pkg/recovery fails.
+  - partition: lob_flow
+    fields:
+    - {name: q, width: 6}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    bindings:
+    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+    - {name: mkt_ask, expr: "mkt - mkt_bid"}
+    - {name: resting, expr: "q - cancels + arrivals"}
+    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+    outputs:
+    - "resting - takes"
+    - "sum(arrivals)"
+    - "sum(cancels)"
+    - "mkt"
+    - "sum(q)"
+macros:
+- type: posterior_estimation
+  log_norm: {name: lob_post_log_norm, default: 0.0}
+  # Off-truth prior: [0.4, 0.05, 0.3] against a truth of [1.2, 0.15, 0.8].
+  mean: {name: lob_post_mean, default: [0.4, 0.05, 0.3]}
+  # just_variance keeps this per-dimension (3 values, not a dense 3x3) and wires
+  # the sampler to read it as variance_partition. The three rates are close to
+  # independent here, so a dense covariance would spend estimation effort on
+  # off-diagonals that carry nothing.
+  covariance:
+    name: lob_post_var
+    default: [0.36, 0.0064, 0.16]
+    just_variance: true
+  sampler:
+    name: lob_post_sampler
+    default: [0.4, 0.05, 0.3]
+    distribution:
+      likelihood: {type: normal, allow_default_covariance_fallback: true}
+      params:
+        # Dense 3x3, and only used while step <= cov_burn_in_steps; after that the
+        # proposal width comes from lob_post_var.
+        default_covariance: [0.36, 0.0,    0.0,
+                             0.0,  0.0064, 0.0,
+                             0.0,  0.0,    0.16]
+        cov_burn_in_steps: [200]
+      params_from_upstream:
+        mean: {upstream: lob_post_mean}
+  comparison:
+    name: lob_likelihood
+    model:
+      # Counts, so Poisson. Its mean comes from the inner intensity partition
+      # below — NOT from the sampler directly, which is the whole point.
+      likelihood: {type: poisson}
+      params_from_upstream:
+        mean: {upstream: lob_intensity}
+    # The three observed counts: n_limit (6), n_cancel (7), n_market (8).
+    data: {partition_name: lob_flow, value_indices: [6, 7, 8]}
+    window:
+      data: [{partition_name: lob_flow}]
+      depth: 100
+      partitions:
+      - partition:
+          name: lob_intensity
+          iteration:
+            type: expression
+            fields: [{name: lam, width: 3}]
+            outputs:
+            # max(..., floor) is load-bearing: the proposal is Gaussian and will
+            # propose negative rates, and a Poisson loglike at a negative mean is
+            # NaN — which would poison the posterior rather than reject the sample.
+            # Clamping to a tiny positive floor makes an impossible proposal score
+            # catastrophically badly instead, which is the correct rejection.
+            - "max(concat(sampled[0] * num_levels * dt,
+                          sampled[1] * observed[9] * dt,
+                          sampled[2] * dt), floor)"
+          params:
+            # Placeholders; overwritten each step by the wiring below.
+            sampled: [0.4, 0.05, 0.3]
+            observed: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+            num_levels: [6.0]
+            floor: [0.000001]
+          # Within-step read of the replayed observation, so observed[9] is the
+          # depth_start of the very row whose counts are being scored.
+          params_from_upstream:
+            observed: {upstream: lob_flow}
+          init_state_values: [0.0, 0.0, 0.0]
+          state_history_depth: 1
+          seed: 0
+        # The sampler lives in the OUTER simulation, so it cannot be an ordinary
+        # upstream — the embedded-run machinery injects it through this hook. This
+        # is the coupling that makes the loglike depend on the proposal.
+        outside_upstreams:
+          sampled: {upstream: lob_post_sampler}
+    # MUST EQUAL the window depth above — not merely be >= it, and never the run
+    # length. This sets the OUTER replay partition's state-history depth, and
+    # FromHistoryIteration walks that buffer from row depth-2 down to
+    # depth-Window.Depth-1: equality consumes it exactly, anything larger anchors
+    # the window in rows that are still zero-filled (the buffer starts zeroed and
+    # gains one real row per outer step).
+    #
+    # Getting it wrong does not weaken the likelihood, it INVERTS it — the score is
+    # computed against the buffer's zeros, so a near-zero parameter outscores the
+    # truth and a posterior driven by it converges onto its prior and sits there.
+    # That is what produced this spike's first result: a frozen posterior no amount
+    # of tuning could move. stochadex v0.13.1 now warns on the oversized side (it
+    # only ever rejected the too-shallow one), which is the fix for the finding this
+    # repo reported — see DECISIONS.md. The warning goes to the log, so
+    # TestWindowHistoryDepthMatchesWindowDepth still asserts the equality here.
+    window_data_history_depth: {lob_flow: 100}
+  past_discount: 0.999
+  memory_depth: 100
+  seed: 1234

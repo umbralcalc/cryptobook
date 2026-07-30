@@ -1,0 +1,12 @@
+# Working market data — freshly recorded feed segments. Never committed: the licence
+# does not permit redistribution and a long recording is large. Fetch scripts belong in
+# dat/, working data does not.
+dat/*
+!dat/.gitkeep
+!dat/*.sh
+!dat/*.py
+
+# Simulation output
+*.log
+*.arrow
+*.parquet

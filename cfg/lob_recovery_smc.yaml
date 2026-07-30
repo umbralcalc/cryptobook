@@ -1,0 +1,159 @@
+# Phase 1 — synthetic parameter recovery via SEQUENTIAL MONTE CARLO.
+#
+# This is the candidate answer to the Spike 1.2 escalation. cfg/lob_recovery.yaml
+# recovers the two strongly-identified rates but does it by hill-climbing on a
+# single best sample: its ESS is 1.00 of 16, so the weakly-identified rate is not
+# estimated at all and no parameter comes with usable uncertainty. Phase 2's
+# deliverable is calibrated parameters WITH uncertainty, so that is disqualifying
+# rather than merely untidy.
+#
+# Same model, same observables, same truth, same pre-registered tolerance — only the
+# inference layer differs, so the comparison is clean. Still pure config.
+#
+# ── WHY THIS SHOULD FIX IT, MECHANICALLY ──────────────────────────────────────
+#
+# Two changes, and the second is the one that matters:
+#
+#  1. PRIORS BOUND THE SEARCH. `posterior_estimation` proposes from a Gaussian
+#     centred on the running mean, which happily proposes negative rates — and a
+#     Poisson log-likelihood at a negative mean is NaN, so that config needs a
+#     clamp to turn an impossible proposal into a merely terrible one. Uniform
+#     priors on positive ranges remove the failure mode structurally instead.
+#
+#  2. THE PROPOSAL CONTRACTS ACROSS ROUNDS. `smc_inference` is adaptive importance
+#     sampling: round 1 draws all particles from the priors, and every later round
+#     draws from a Gaussian fitted to the previous round's weighted posterior
+#     (regularised, and truncated back to the priors). Degeneracy is a property of
+#     how wide the proposal is relative to the likelihood's peak — so a proposal
+#     that narrows onto the peak is the direct fix, whereas a fixed-width proposal
+#     centred on a drifting mean never stops being too wide.
+#
+# The prediction to test is therefore specific: per-round ESS should be poor in
+# round 1 (particles spread over the whole prior) and recover as the proposal
+# contracts. If it does not, the problem is not the algorithm and the escalation
+# needs a different answer.
+#
+# ── DELIBERATELY NOT MADE EASIER ──────────────────────────────────────────────
+#
+# The priors are wide and the truth is NOT centred in any of them (1.2 in
+# [0.1, 3.0], 0.15 in [0.01, 0.5], 0.8 in [0.05, 2.5]). A prior centred on the
+# answer would make this a rigged comparison.
+data:
+  steps: 400
+  timestep: 1.0
+  partitions:
+  - name: lob_flow
+    params:
+      # Identical truth to cfg/lob_recovery.yaml — pinned by
+      # TestSmcTruthMatchesTheOtherConfig so the two cannot drift apart and stop
+      # being comparable.
+      limit_rate: [1.2]
+      cancel_rate: [0.15]
+      market_rate: [0.8]
+      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      half: [0.5]
+    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+    state_history_depth: 1
+    seed: 20260728
+  expressions:
+  - partition: lob_flow
+    fields:
+    - {name: q, width: 6}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    bindings:
+    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+    - {name: mkt_ask, expr: "mkt - mkt_bid"}
+    - {name: resting, expr: "q - cancels + arrivals"}
+    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+    outputs:
+    - "resting - takes"
+    - "sum(arrivals)"
+    - "sum(cancels)"
+    - "mkt"
+    - "sum(q)"
+macros:
+- type: smc_inference
+  proposal_name: smc_proposals
+  sim_name: smc_particles
+  posterior_name: smc_posterior
+  # 160 particles x 5 rounds. Rounds buy the contraction, particles the resolution
+  # within a round; both matter and neither substitutes.
+  #
+  # DO NOT RAISE num_rounds WITHOUT RE-CHECKING CALIBRATION. More rounds is not
+  # monotonically better, and the failure is the dangerous direction. At 9 rounds
+  # the point estimates improve in the two easy settings, but in the near-boundary
+  # setting — where ESS plateaus around 3 — the proposal keeps contracting faster
+  # than the estimate converges, the posterior sd shrinks from 0.0015 to 0.0009,
+  # and the truth ends up 2.3 sd from the mean instead of 1.8. The posterior gets
+  # tighter and WRONGER, which is exactly the failure mode a calibration is
+  # supposed to rule out.
+  #
+  # Guarded by raising_smc_rounds_trades_calibration_for_point_accuracy in
+  # pkg/recovery, which pins this trade so the config cannot be "improved" into
+  # overconfidence without CI saying so.
+  num_particles: 160
+  num_rounds: 5
+  seed: 20260728
+  # Wide, and not centred on the truth.
+  priors:
+  - {type: uniform, lo: 0.1,  hi: 3.0}    # limit_rate,  truth 1.2
+  - {type: uniform, lo: 0.01, hi: 0.5}    # cancel_rate, truth 0.15
+  - {type: uniform, lo: 0.05, hi: 2.5}    # market_rate, truth 0.8
+  param_names: [limit_rate, cancel_rate, market_rate]
+  model:
+    # Replays the generated flow into every particle's model and drives the inner
+    # timeline from the data's own timestamps.
+    observed_data:
+      name: lob_flow_observed
+      ref: {partition_name: lob_flow}
+    # ONE particle's model, stated once. The macro instantiates it per particle with
+    # deep-copied params and a fresh iteration, and reseeds each particle per round,
+    # so nothing is shared between them.
+    partitions:
+    - name: lob_intensity
+      iteration:
+        type: expression
+        fields: [{name: lam, width: 3}]
+        outputs:
+        # The same intensity model cfg/lob_recovery.yaml scores, so the two configs
+        # are testing the same likelihood and differ only in how it is searched:
+        #   E[n_limit]  = limit_rate  * num_levels * dt
+        #   E[n_cancel] = cancel_rate * depth_start * dt   <- the queue coupling
+        #   E[n_market] = market_rate * dt
+        - "max(concat(rates[0] * num_levels * dt,
+                      rates[1] * observed[9] * dt,
+                      rates[2] * dt), floor)"
+      params:
+        # Overwritten per particle each round by param_forwarding below.
+        rates: [1.2, 0.15, 0.8]
+        observed: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        num_levels: [6.0]
+        # Now defensive rather than load-bearing: the priors are strictly positive so
+        # no particle can propose a negative rate. It stays only to keep a Poisson
+        # mean of exactly zero (which would make any non-zero count -Inf) out of the
+        # likelihood.
+        floor: [0.000001]
+      params_from_upstream:
+        observed: {upstream: lob_flow_observed}
+      init_state_values: [0.0, 0.0, 0.0]
+      state_history_depth: 2
+    - name: lob_loglike
+      iteration: {type: data_comparison, likelihood: {type: poisson}}
+      params: {cumulative: [1], burn_in_steps: [0]}
+      params_from_upstream:
+        mean: {upstream: lob_intensity}
+        # Only the three counts: n_limit (6), n_cancel (7), n_market (8).
+        latest_data_values: {upstream: lob_flow_observed, indices: [6, 7, 8]}
+      init_state_values: [0.0]
+      state_history_depth: 2
+    loglike_partition: lob_loglike
+    # The particle's 3-vector lands in lob_intensity's `rates`, in prior order.
+    param_forwarding:
+      "lob_intensity/rates": [0, 1, 2]

@@ -1,0 +1,86 @@
+# Calibrate from a RECORDED segment on disk, rather than from a sub-simulation.
+#
+# Same SMC inference as cfg/lob_recovery_smc.yaml. The only change is the `data:`
+# tier: instead of generating its own flow, it reads a recorded segment through the
+# engine's `json_log` source. Everything downstream of that is identical.
+#
+# ── WHY THIS EXISTS ───────────────────────────────────────────────────────────
+#
+# It is the evidence for Gate 3.4, and it is deliberately boring. The gate asks
+# whether a continuously-running streaming calibration forces inference into the
+# engine. This config is the shape that says no: a collector writes a segment, the
+# engine reads a FINISHED window of it, calibration runs, repeat.
+#
+# What matters is what is absent. There is no engine change here, no new source
+# type, and no growing storage — the `data:` tier is used exactly as it ships.
+# `RegisterDataSource`'s contract is `build(fields) -> (*StateTimeStorage, error)`,
+# so a downstream-contributed source may block on a live feed and return once a
+# window is full, and this config would not know the difference. Swapping
+# `json_log` for `postgres` (which additionally takes start_time/end_time, so the
+# windowing is the query) changes nothing else.
+#
+# The engine therefore never sees a stream. It sees a finished dataset, which is
+# what `data:` has always been. Whether that is the right boundary is the
+# maintainer's call; this config establishes only that it is an AVAILABLE one, at
+# zero cost to the engine.
+#
+# pkg/streaming measures the throughput this achieves and what it costs in
+# estimate quality, since "available" is not the same as "fast enough".
+#
+# ── THE PATH IS SUBSTITUTED, NOT FIXED ────────────────────────────────────────
+#
+# The path below is a placeholder. pkg/streaming replaces it per window, and
+# cfgrun errors rather than silently proceeding if the substitution target is
+# missing — so a measurement can never accidentally read a stale segment.
+data:
+  source:
+    json_log: {path: RECORDED_SEGMENT_PATH}
+macros:
+- type: smc_inference
+  proposal_name: smc_proposals
+  sim_name: smc_particles
+  posterior_name: smc_posterior
+  # Kept identical to cfg/lob_recovery_smc.yaml so throughput here is comparable to
+  # the accuracy measured there, and so the round-count trap documented in that file
+  # applies unchanged.
+  num_particles: 160
+  num_rounds: 5
+  seed: 20260728
+  priors:
+  - {type: uniform, lo: 0.1,  hi: 3.0}    # limit_rate,  truth 1.2
+  - {type: uniform, lo: 0.01, hi: 0.5}    # cancel_rate, truth 0.15
+  - {type: uniform, lo: 0.05, hi: 2.5}    # market_rate, truth 0.8
+  param_names: [limit_rate, cancel_rate, market_rate]
+  model:
+    observed_data:
+      name: lob_flow_observed
+      ref: {partition_name: lob_flow}
+    partitions:
+    - name: lob_intensity
+      iteration:
+        type: expression
+        fields: [{name: lam, width: 3}]
+        outputs:
+        - "max(concat(rates[0] * num_levels * dt,
+                      rates[1] * observed[9] * dt,
+                      rates[2] * dt), floor)"
+      params:
+        rates: [1.2, 0.15, 0.8]
+        observed: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+        num_levels: [6.0]
+        floor: [0.000001]
+      params_from_upstream:
+        observed: {upstream: lob_flow_observed}
+      init_state_values: [0.0, 0.0, 0.0]
+      state_history_depth: 2
+    - name: lob_loglike
+      iteration: {type: data_comparison, likelihood: {type: poisson}}
+      params: {cumulative: [1], burn_in_steps: [0]}
+      params_from_upstream:
+        mean: {upstream: lob_intensity}
+        latest_data_values: {upstream: lob_flow_observed, indices: [6, 7, 8]}
+      init_state_values: [0.0]
+      state_history_depth: 2
+    loglike_partition: lob_loglike
+    param_forwarding:
+      "lob_intensity/rates": [0, 1, 2]

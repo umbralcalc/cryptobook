@@ -1,0 +1,145 @@
+# The PRICED limit order book — a real ladder, an emergent spread, and marketable
+# orders that walk the book.
+#
+# This is the domain-model step Spike 2.2 sent us back for, and it is still pure
+# config. It does NOT replace cfg/lob_generator.yaml: that model is the Phase 1
+# trust anchor whose recovery claims everything downstream leans on, and
+# invalidating it to make room for this one would cost more than it gains. The two
+# sit side by side.
+#
+# ── WHAT IS NEW, AND WHY EACH PIECE MATTERS ───────────────────────────────────
+#
+# 1. PRICES. The ladder is 8 levels per side at fixed tick offsets from a reference
+#    mid, rather than six slots addressed by 0/1 masks. Bid level i sits i+1 ticks
+#    below the mid, ask level i sits i+1 ticks above.
+#
+# 2. AN EMERGENT SPREAD. The touch is wherever the innermost occupied level happens
+#    to be, so the spread is an OUTPUT rather than a parameter: sweep the inner
+#    levels away and it widens, let arrivals refill them and it narrows. This is
+#    what makes PLAN.md's spread-response output answerable at all.
+#
+# 3. MARKETABLE ORDERS THAT WALK THE BOOK. A large order consumes across levels
+#    until it is filled, instead of being clipped at the touch. The whole content of
+#    "what fraction of resting liquidity survives a large order" is the walk.
+#
+# 4. ARRIVAL INTENSITY THAT DECAYS WITH DISTANCE. cfg/lob_generator.yaml assumes
+#    uniform arrivals across levels, which PREREGISTRATION.md predicted would be
+#    wrong and real books contradict. Here the rate falls off as exp(-decay*i).
+#
+# ── WHAT IS STILL MISSING, AND WHY ────────────────────────────────────────────
+#
+# ORDER IDENTITY. There is no FIFO queue and no per-order record, so
+# queue-position remains unanswerable. That is not a scoping choice — it is a
+# capability gap: assigning k simultaneous arrivals to the first k free slots is an
+# allocation problem needing a scan across lanes, which the expressions DSL cannot
+# express. See STOCHADEX_GAPS.md entry 1. The alternative is bespoke Go, which would
+# break the pure-config property every model here holds.
+#
+# ── THE TWO DSL IDIOMS THIS MODEL RESTS ON ────────────────────────────────────
+#
+# Both are verified rather than assumed, and both are non-obvious enough to be worth
+# naming where they are used.
+#
+# PREFIX SUM. `each` binds a lane index but a lane cannot read earlier lanes, so
+# there is no scan. A prefix sum is recoverable because `where` is LAZY inside
+# `each`: lane 0 never evaluates the zero-width slice that would otherwise panic.
+# Both the guard and the max(i, 1) are needed.
+#
+# FIRST OCCUPIED LEVEL. Exactly one level has both "I am occupied" and "nothing in
+# front of me is occupied", so a dot product against the lane indices picks it out.
+# An empty side needs its own guard, or it reports level 0.
+main:
+  partitions:
+  - name: lob_priced
+    params:
+      # Arrival intensity at the innermost level, decaying outwards.
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      # Per resting unit, per unit time.
+      cancel_rate: [0.25]
+      # Marketable order arrivals per unit time (both sides), and the size of one.
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      # Reported when a side is empty: wider than any real spread on this ladder,
+      # so it cannot be mistaken for a tight book.
+      empty_spread: [99.0]
+      # A one-off large marketable buy, for the liquidity-survival output. The
+      # default step of -1 never matches, so the base model is unshocked and the
+      # spread claims measure ordinary dynamics rather than a perturbed book.
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    # Eight levels a side. Starting at the stationary depth of the innermost level
+    # keeps the early steps informative without a burn-in.
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2]
+    state_history_depth: 1
+    seed: 20260729
+  expressions:
+  - partition: lob_priced
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    bindings:
+    # Draws inside `each` are already explicit — the lane is scalar — so poisson()
+    # needs no shared()/iid() wrapper here, unlike at the top level.
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
+    - {name: can_bid, expr: "min(bid, poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, poisson(cancel_rate * ask * dt))"}
+
+    # Marketable flow, split between the sides. A buy lifts asks, a sell hits bids.
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    # The shock rides in as extra buy volume, so it sweeps the ask side through
+    # exactly the same book-walking path as ordinary marketable flow — no second
+    # mechanism to reason about.
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+
+    # Cancellations act on the book as it stood; arrivals then join; the marketable
+    # order sweeps what is left. An order cannot be cancelled before it arrives.
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+
+    # THE SWEEP. cumsum[i] is the volume in front of level i, so a level absorbs
+    # only what the order has left when it reaches there.
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+
+    # THE TOUCH. The innermost occupied level on each side, and hence the spread.
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    # Level i sits i+1 ticks from the mid, so a two-sided book's spread is
+    # best_bid + best_ask + 2 ticks. A one-sided book has no spread to report.
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

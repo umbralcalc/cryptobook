@@ -1,0 +1,146 @@
+# The CHURN model — arrivals and cancellations driven by a shared activity factor.
+#
+# The last hypothesis standing for Spike 2.2's failure. Binance BTCUSDT shows arrivals
+# and cancellations moving in near-lockstep (+0.98) while NEITHER correlates with
+# resting depth. Both existing models have that exactly
+# backwards: cancellations track depth (+0.37 minimal, +0.64 priced) and the two
+# streams are independent (~0.0).
+#
+# Predictions were fixed in PREREGISTRATION.md and committed BEFORE this file
+# existed, because the risk here is confirming a mechanism by construction. Coupling
+# two streams and then reporting that they are coupled is not a finding. The real
+# question is whether churn ALSO destroys the depth coupling.
+#
+# ── THE MECHANISM ─────────────────────────────────────────────────────────────
+#
+# A latent per-step activity factor drives both streams. It is gamma-distributed
+# with mean 1, so it scales flow up and down without changing its average.
+#
+#   arrivals_i  ~ Poisson( limit_rate * decay_i * activity )
+#   cancels_i   ~ Poisson( churn_rate * share_i * activity  +  cancel_rate * q_i )
+#
+# The first cancellation term is the churn: proportional to ACTIVITY, not to resting
+# depth. That is the microstructural story — a market maker refreshing quotes posts
+# and pulls a roughly constant amount, not a fraction of the whole book. The second
+# term is ordinary attrition of resting orders, kept because real orders do get
+# cancelled on their own account.
+#
+# Everything else — the priced ladder, the emergent spread, the book-walking sweep —
+# is unchanged from cfg/lob_priced.yaml, so any difference in the diagnostics is the
+# churn mechanism rather than a second set of changes.
+#
+# ── WHY GAMMA ─────────────────────────────────────────────────────────────────
+#
+# A Poisson count mixed over a gamma intensity is negative-binomial, hence
+# over-dispersed. That is prediction C, and it matters because neither existing
+# model reproduces ANY of the overdispersion real data shows — this is the first
+# mechanism here that could produce it without being told to.
+#
+# CAREFUL WITH THE PARAMETERISATION. The engine's gamma(alpha, beta) takes a shape
+# and a RATE (verified against pkg/rng: gamma(2, 0.5) has mean 4.0, not 1.0), so
+# mean = shape/rate and variance = shape/rate². An earlier version of this comment
+# claimed the second argument was a scale and that these values gave mean 1; both
+# were wrong, and the models have always run with MEAN ACTIVITY 4.
+#
+# That does not change any fitted result — churn_rate was fitted to a measured ratio
+# with this activity in place, so the numbers stand — but it does change what the
+# parameters mean. To vary burstiness while holding mean activity fixed, shape and
+# rate must move TOGETHER: rate = shape gives mean 1 and variance 1/shape.
+main:
+  partitions:
+  - name: lob_churn
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      # Ordinary attrition of resting orders — the depth-proportional term.
+      cancel_rate: [0.08]
+      # Quote refresh — the activity-proportional term.
+      #
+      # 3.0 is the ORIGINAL pre-registered parameterisation, kept as the default so
+      # the A/B/C scoring in pkg/churn stays reproducible exactly as it was scored.
+      # It was chosen to make churn flow comparable to ARRIVAL flow, and that
+      # criterion turned out not to pin the regime — what matters is churn relative
+      # to DEPTH. See PREREGISTRATION.md.
+      #
+      # pkg/churn also runs this model at 1.15, for the D/E/F scoring. That is an
+      # ARBITRARY value, pinned so those scores stay reproducible. It is NOT fitted to
+      # market data and must not be described as such.
+      churn_rate: [3.0]
+      activity_shape: [2.0]
+      activity_rate: [0.5]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2]
+    state_history_depth: 1
+    seed: 20260729
+  expressions:
+  - partition: lob_churn
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    bindings:
+    # THE SHARED DRIVER. One draw per step, applied to both streams — this is the
+    # entire coupling. shared() because a bare gamma of two scalars would have an
+    # ambiguous width, and because the whole point is that one value reaches both.
+    - {name: activity, expr: "shared(gamma(activity_shape, activity_rate))"}
+
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt))"}
+
+    # Churn is distributed across levels the same way arrivals are, because it is
+    # the same quotes being pulled that were posted. Attrition stays proportional to
+    # what is resting. min(...) clips: volume cannot go negative.
+    - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: churn_ask, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: can_bid, expr: "min(bid, churn_bid + poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, churn_ask + poisson(cancel_rate * ask * dt))"}
+
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

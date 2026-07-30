@@ -1,0 +1,82 @@
+# Depth recovery following a liquidity event — the one stability output of
+# PLAN.md's Spike 4.2 this model can actually support.
+#
+# Identical to cfg/lob_generator.yaml except for the shock: at `shock_step` the
+# resting ladder is cut to `survive_fraction` of itself, and the run continues.
+# Everything after that step is the book refilling.
+#
+# ── WHY ONLY THIS ONE ─────────────────────────────────────────────────────────
+#
+# Spike 4.2 lists four outputs and asks which are answerable, instructing that
+# unanswerable ones be MARKED AS SUCH rather than approximated. Three cannot be
+# answered by this model, and the reasons are structural rather than a matter of
+# tuning — see DECISIONS.md. The short version: the model has no prices at all (the
+# ladder is six slots addressed by 0/1 masks), and no order identity.
+#
+# This one is answerable because depth is exactly what the model is about.
+# Arrivals add at a fixed rate per level and cancellations remove in proportion to
+# what is resting, so depth obeys dq/dt = limit_rate - cancel_rate*q and relaxes
+# exponentially to limit_rate/cancel_rate with timescale 1/cancel_rate.
+#
+# That yields a counterfactual worth stating, and a non-obvious one: **recovery
+# TIME is set by the cancellation rate alone, while the LEVEL recovered to is set
+# by the ratio of both rates.** Doubling the arrival rate refills the book to twice
+# the depth in the same time. pkg/stability tests both halves.
+#
+# ── FRAMING ───────────────────────────────────────────────────────────────────
+#
+# This is a counterfactual about market state — how long liquidity takes to come
+# back — with no price and no direction anywhere in it. PLAN.md's framing
+# discipline is easy to hold here because the model has no price process to
+# violate it with.
+main:
+  partitions:
+  - name: lob_flow
+    params:
+      limit_rate: [1.2]
+      cancel_rate: [0.15]
+      market_rate: [0.8]
+      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      half: [0.5]
+      # The liquidity event: at this step, this fraction of resting volume survives.
+      # 0.1 removes 90% of the book at once — large enough that the recovery is not
+      # lost in the ordinary step-to-step noise.
+      shock_step: [200.0]
+      survive_fraction: [0.1]
+    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+    state_history_depth: 1
+    seed: 20260728
+  expressions:
+  - partition: lob_flow
+    fields:
+    - {name: q, width: 6}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    bindings:
+    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+    - {name: mkt_ask, expr: "mkt - mkt_bid"}
+    - {name: resting, expr: "q - cancels + arrivals"}
+    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+    - {name: next_q, expr: "resting - takes"}
+    outputs:
+    # The shock is applied to the ladder as it would have been, so the step's own
+    # flow counts stay honest — the event removes resting liquidity, it does not
+    # retroactively change the arrivals and cancellations that happened during the
+    # step. `step` is scalar and broadcasts across the 6-wide ladder.
+    - "where(step == shock_step, next_q * survive_fraction, next_q)"
+    - "sum(arrivals)"
+    - "sum(cancels)"
+    - "mkt"
+    - "sum(q)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

@@ -1,0 +1,146 @@
+# DEPTH-DEPENDENT ARRIVALS — the stabiliser that acts on posting, not cancellation.
+#
+# The answer to a narrow question left by the previous step. Removing attrition made
+# all four correlation signatures match real data and destroyed the book: depth grew
+# without bound and the spread collapsed to a constant, because attrition was the
+# model's only depth-stabilising force.
+#
+# So: can depth be stabilised WITHOUT reintroducing the depth/cancellation coupling?
+#
+# ── THE MECHANISM ─────────────────────────────────────────────────────────────
+#
+# Cancellation stays PURE CHURN — activity-driven, with no depth-proportional term
+# anywhere in it. The stabiliser moves to the arrival side instead:
+#
+#   arr_i ~ Poisson( limit_rate * decay_i * activity / (1 + q_i / arrival_scale) )
+#
+# Posting into a level slows as that level fills. arrival_scale is the queue depth at
+# which posting halves. Economically this is the obvious shape — less incentive to
+# join a long queue — and it is the standard form in the Santa Fe literature this
+# model descends from.
+#
+# Note the damping is PER LEVEL, using q_i rather than total depth. A trader decides
+# whether to join the queue in front of them, not whether the whole book is deep.
+# That also keeps the feedback local, so a deep far level does not suppress posting
+# at the touch.
+#
+# ── WHAT IS BEING TESTED, AND WHAT IS NOT ─────────────────────────────────────
+#
+# Predictions were fixed in PREREGISTRATION.md and committed before this file
+# existed. The one that matters is J: whether the depth/cancellation coupling STAYS
+# broken. Cancellations contain no depth term, so that looks forced — it is not.
+# Depth is now anti-correlated with arrivals, and arrivals share the activity driver
+# with cancellations, so that indirect path could reintroduce a coupling of either
+# sign. Which way it goes was not known when this was written.
+#
+# K (corr(depth, arrivals) turns negative) IS forced by construction, and is claimed
+# the two markets disagree exactly where this mechanism makes a prediction.
+main:
+  partitions:
+  - name: lob_arrivals
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      # NO ATTRITION. Cancellation is pure churn; a depth-proportional term here is
+      # exactly what this variant exists to avoid. Kept as a named zero rather than
+      # deleted, so the absence is visible and a stray reintroduction is obvious.
+      cancel_rate: [0.0]
+      # The queue depth at which posting into a level halves.
+      #
+      # An ARBITRARY value, chosen to put mean depth in the same range as the
+      # attrition model's. It is NOT fitted to market data and must not be described
+      # as such — it is the parameterisation the pre-registered G/H/I scores were
+      # measured at, which is the only reason it is pinned. Fitting it to anything
+      # would need its own pre-registration.
+      arrival_scale: [19.0]
+      # Also arbitrary, on the same basis as arrival_scale above: pinned so the
+      # G/H/I scores stay reproducible, not fitted to market data.
+      churn_rate: [1.15]
+      activity_shape: [2.0]
+      activity_rate: [0.5]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2]
+    state_history_depth: 1
+    seed: 20260729
+  expressions:
+  - partition: lob_arrivals
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    bindings:
+    # THE SHARED DRIVER. One draw per step, applied to both streams — this is the
+    # entire coupling. shared() because a bare gamma of two scalars would have an
+    # ambiguous width, and because the whole point is that one value reaches both.
+    #
+    # CAREFUL: the engine's gamma(alpha, beta) is (shape, RATE) — verified against
+    # pkg/rng, where gamma(2, 0.5) has mean 4.0, not 1.0. So mean = shape/rate and
+    # variance = shape/rate². These values give MEAN ACTIVITY 4, not 1. An earlier
+    # comment in cfg/lob_churn.yaml claimed the second argument was a scale giving
+    # mean 1; that was wrong. It changes no fitted result — the parameters were
+    # fitted with this activity in place — but to vary burstiness at fixed mean
+    # activity, shape and rate must move TOGETHER (rate = shape gives mean 1).
+    - {name: activity, expr: "shared(gamma(activity_shape, activity_rate))"}
+
+    # THE STABILISER. slice(bid, i, 1) reads THIS level's resting volume inside the
+    # lane, so the damping is per level rather than driven by total depth.
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(bid, i, 1) / arrival_scale)))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(ask, i, 1) / arrival_scale)))"}
+
+    # Churn is distributed across levels the same way arrivals are, because it is
+    # the same quotes being pulled that were posted. Attrition stays proportional to
+    # what is resting. min(...) clips: volume cannot go negative.
+    - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: churn_ask, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: can_bid, expr: "min(bid, churn_bid + poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, churn_ask + poisson(cancel_rate * ask * dt))"}
+
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

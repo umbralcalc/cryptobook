@@ -1,0 +1,102 @@
+# The minimal LOB generator — forward simulation only.
+#
+# PURPOSE AND SCOPE. This exists to make the Phase 1 recovery test decisive, and
+# nothing else. It is NOT a port of umbralcalc/lobsim (a Python/Jupyter Santa
+# Fe-style ensemble agent model), and it is NOT the model Phase 2 calibrates
+# against real order-book data. It is the smallest generative process that carries the
+# three free parameters Phase 1 must recover, one of which — the cancellation
+# rate — is identifiable only through its coupling to queue state. See
+# DECISIONS.md for why the project needed one at all.
+#
+# WHAT IT IS. A discrete price ladder of 3 levels per side (6 in total), holding
+# resting volume. Three event streams act on it each step:
+#
+#   limit arrivals   Poisson(limit_rate · dt) independently at each of the 6 levels
+#   cancellations    Poisson(cancel_rate · q_i · dt) at level i — proportional to the
+#                    resting volume there, so a deeper queue cancels more. THIS is the
+#                    coupling that makes cancel_rate identifiable and that carries the
+#                    stability question (PLAN.md Spike 1.1: the recovery set must
+#                    include an arrival rate and a cancellation rate).
+#   market orders    Poisson(market_rate · dt) arrivals, split 50/50 between sides,
+#                    consuming resting volume at the touch.
+#
+# DELIBERATE SIMPLIFICATIONS, each of which must be stated wherever this model's
+# output is reported:
+#
+#   - Market orders consume AT THE TOUCH ONLY. They do not walk the book when the
+#     touch is thin; the excess is simply not filled. Walking the ladder adds no
+#     information to a rate-recovery test, so it is left out rather than
+#     half-implemented.
+#   - The ladder is static: no price moves, no level shifting, no mid-price. There
+#     is therefore no spread and no queue position in this model. Spike 4.2's
+#     spread-response and queue-position outputs are NOT answerable from it.
+#   - Arrival intensity is uniform across levels. Real books decay with distance
+#     from the mid.
+#   - Volume is continuous-valued (a Poisson count of units), not discrete orders,
+#     so there is no order-level identity and no FIFO queue.
+#
+# The state row is 10 wide:
+#   0..5  q            resting volume per level (0..2 = bid, touch first; 3..5 = ask)
+#   6     n_limit      limit arrivals during this step        (summed over levels)
+#   7     n_cancel     cancellations during this step         (summed over levels)
+#   8     n_market     market-order arrivals during this step
+#   9     depth_start  total resting volume at the START of this step
+#
+# depth_start is at the start, not the end, on purpose: it is the depth the
+# cancellations in this same row were actually drawn against, which is what makes
+# the row self-contained for inference. cfg/lob_recovery.yaml depends on this.
+main:
+  partitions:
+  - name: lob_flow
+    params:
+      limit_rate: [1.2]        # per level, per unit time
+      cancel_rate: [0.15]      # per resting unit, per unit time
+      market_rate: [0.8]       # per unit time, both sides combined
+      # The ladder geometry as data: which slots are the touch of each side. Masks
+      # rather than indices because everything here is elementwise over the 6-wide
+      # ladder, so "add at the touch" is a multiply.
+      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+      half: [0.5]
+    # Start at the stationary per-level depth, limit_rate/cancel_rate = 8, so the
+    # run needs no burn-in before the counts are informative.
+    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+    state_history_depth: 1
+    seed: 20260728
+  expressions:
+  - partition: lob_flow
+    fields:
+    - {name: q, width: 6}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    bindings:
+    # iid, not a bare poisson: limit_rate * dt is scalar, so the draw's width would
+    # be ambiguous and the run would panic. iid(6, ...) says "6 independent draws",
+    # which is the intended reading — one arrival stream per level.
+    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+    # No wrapper needed here: cancel_rate * q * dt is already 6-wide, so the draw
+    # is elementwise per level. min(q, ...) clips a draw that would over-cancel a
+    # thin level — Poisson is unbounded above and volume cannot go negative.
+    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+    - {name: mkt_ask, expr: "mkt - mkt_bid"}
+    # Cancellations are drawn against the queue as it stood at the start of the
+    # step, then arrivals join, then market orders consume. The order matters and
+    # this is the one chosen: an order cannot be cancelled before it arrives.
+    - {name: resting, expr: "q - cancels + arrivals"}
+    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+    outputs:
+    - "resting - takes"
+    - "sum(arrivals)"
+    - "sum(cancels)"
+    - "mkt"
+    - "sum(q)"                 # q is still the START-of-step ladder here
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 200}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0
