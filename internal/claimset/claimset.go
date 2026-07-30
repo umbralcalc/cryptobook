@@ -54,19 +54,20 @@ var providers = []func() []claims.Claim{
 	priced.ObservedBehaviour,    // Spike 4.2: two more, unlocked by prices and book-walking
 }
 
-// NOT registered: pkg/crypto.
+// NOT registered: pkg/crypto or pkg/replication.
 //
-// Its Spike 2.2 diagnostics are real and its tests enforce them — but only for someone
-// holding the recorded segment, which cannot be committed because Binance's licence does
-// not permit redistribution (README.md quotes it). Registering it would make CLAIMS.md
-// depend on a file a fresh clone does not have, so the page would differ between CI and a
-// machine with the data and TestClaimsUpToDate would fail for whoever had less.
+// Their Spike 2.2 diagnostics are real and their tests enforce them — but only for
+// someone holding the recorded segments, which cannot be committed because Binance's
+// licence does not permit redistribution (README.md quotes it). Registering them would
+// make CLAIMS.md depend on files a fresh clone does not have, so the page would differ
+// between CI and a machine with the data and TestClaimsUpToDate would fail for whoever
+// had less.
 //
-// This is the project's central structural weakness: the domain's own data is
-// non-redistributable, so the results that matter most are the ones CI cannot re-check.
-// What crypto changes is that anyone can REGENERATE the input from public endpoints in
-// minutes, which is why the pre-registered cross-segment bounds are stated as bounds any
-// fresh recording must satisfy rather than as point values.
+// This is the project's central structural weakness, and narrowing to crypto did not fix
+// it: the domain's own data is still non-redistributable, so the results that matter most
+// are the ones CI cannot re-check. What crypto changes is that anyone can REGENERATE the
+// input from public endpoints in eight minutes, which is why pkg/replication states its
+// findings as bounds that any fresh recording must satisfy rather than as point values.
 
 // All returns the repo's complete claim set.
 //

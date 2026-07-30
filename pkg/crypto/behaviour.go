@@ -137,7 +137,7 @@ func observedBehaviour() ([]claims.Claim, error) {
 			Limitations: limitations + " The pre-committed consequence of this " +
 				"failing was that Phase 2 stops rather than being tuned, so it is acted " +
 				"on rather than reported around. Measured on one symbol over one window; " +
-				"a cross-segment check is pre-registered to establish whether it is specific to either.",
+				"pkg/replication is what establishes it is not specific to either.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: false, Ref: 0.2, RefLabel: "+0.2"},
 			},
