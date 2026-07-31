@@ -34,6 +34,7 @@ package recovery
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/umbralcalc/cryptobook/pkg/cfgrun"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
@@ -191,34 +192,70 @@ func effectiveSampleSizeOf(loglikes []float64) (float64, bool) {
 	return sum * sum / sumSquares, true
 }
 
+// smcRun names one SMC run: a setting and the round count to run it at.
+type smcRun struct {
+	setting setting
+	rounds  int
+}
+
+// boundary indexes the near-boundary setting — the weak one for ESS, and the one
+// whose calibration degrades when the round count is raised.
+const boundary = 2
+
+// smcRuns lists every run smcBehaviour needs: each setting at the config's round
+// count, then the near-boundary setting again at the raised count. Laid out as data
+// so all four run together rather than one after another.
+func smcRuns() []smcRun {
+	runs := make([]smcRun, 0, len(settings)+1)
+	for _, s := range settings {
+		runs = append(runs, smcRun{s, smcRounds})
+	}
+	return append(runs, smcRun{settings[boundary], smcRaisedRounds})
+}
+
 // smcBehaviour measures the SMC claims.
+//
+// Memoised, because two tests need this set: TestSmcRecoveryExpectedBehaviour, which
+// is the binding test these claims name, and TestSyntheticRecoveryExpectedBehaviour,
+// which reaches them through ObservedBehaviour — the package exports ONE provider to
+// internal/claimset, so observedBehaviour has to append these. Measured twice that
+// was four redundant SMC runs per test binary, about a third of this package's
+// runtime, for a set that cannot differ between the two calls: every run is
+// fixed-seed from its config.
+var smcMemo struct {
+	once  sync.Once
+	set   []claims.Claim
+	fault error
+}
+
 func smcBehaviour() ([]claims.Claim, error) {
+	smcMemo.once.Do(func() {
+		smcMemo.set, smcMemo.fault = measureSmcBehaviour()
+	})
+	return smcMemo.set, smcMemo.fault
+}
+
+func measureSmcBehaviour() ([]claims.Claim, error) {
 	binding := claims.Binding{
 		TestName: "TestSmcRecoveryExpectedBehaviour",
 		TestFile: "pkg/recovery/smc_test.go",
 	}
 
-	results := make([]smcResult, len(settings))
+	measured, err := inParallel(smcRuns(), func(r smcRun) (smcResult, error) {
+		return runSMC(r.setting, r.rounds)
+	})
+	if err != nil {
+		return nil, err
+	}
+	results, raised := measured[:len(settings)], measured[len(settings)]
+
 	errorObs := make([]claims.Observation, 0, len(settings))
 	sigmaObs := make([]claims.Observation, 0, len(settings))
 	for i, s := range settings {
-		result, err := runSMC(s, smcRounds)
-		if err != nil {
-			return nil, err
-		}
-		results[i] = result
 		errorObs = append(errorObs, claims.Observation{
-			Label: s.label, Value: result.worstRelativeError(s.truth)})
+			Label: s.label, Value: results[i].worstRelativeError(s.truth)})
 		sigmaObs = append(sigmaObs, claims.Observation{
-			Label: s.label, Value: result.worstCalibrationSigma(s.truth)})
-	}
-
-	// The near-boundary setting is the weak one for ESS, and the one whose
-	// calibration degrades when the round count is raised.
-	const boundary = 2
-	raised, err := runSMC(settings[boundary], smcRaisedRounds)
-	if err != nil {
-		return nil, err
+			Label: s.label, Value: results[i].worstCalibrationSigma(s.truth)})
 	}
 
 	thresholdsBelow := func(ref float64, label string, n int) []claims.Threshold {

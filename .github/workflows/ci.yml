@@ -36,7 +36,16 @@ jobs:
       # goroutine per partition, and Phase 3's streaming ingress adds a feed
       # goroutine alongside them. -count=1 disables test caching so CI always
       # re-runs the suite rather than reporting a cached pass.
-      - run: go test ./... -race -count=1
+      #
+      # -timeout is stated rather than left to Go's 10m default, which this suite
+      # outgrew: pkg/recovery panicked at that default having measured everything
+      # correctly, and pkg/windowing passed at 490s with under two minutes of room.
+      # Neither is a slow test to be fixed by waiting — these packages re-run the
+      # engine tens of times to re-measure every published claim from scratch, and a
+      # two-core runner under -race takes ~5x what a laptop does. 30m is a ceiling
+      # for a runaway, not a budget: if a package approaches it, the fix is to look
+      # at what it is re-measuring, not to raise this number.
+      - run: go test ./... -race -count=1 -timeout 30m
       # Phase 0 prerequisite (3), and the SOLE enforcement of both halves that the
       # binding tests do not cover. The binding tests catch a broken claim assertion;
       # this step catches an invalid claim set (gen-claims runs claims.Check and exits

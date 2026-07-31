@@ -111,21 +111,48 @@ func loglikeAt(at [3]float64) (float64, error) {
 	return row[len(row)-1], nil
 }
 
-// advantage returns how many nats the true value of parameter i beats a value
-// scaled by `factor`, holding the other two at truth. Positive means the surface
-// prefers the truth, which is what identification means.
-func advantage(i int, factor float64) (float64, error) {
-	atTruth, err := loglikeAt(trueRates)
-	if err != nil {
-		return 0, err
+// probeFactors are the multiples of each true value the surface is probed at:
+// 0.6x and 1.67x, multiplicative and symmetric in log space, so neither side is
+// favoured by the choice of probe.
+var probeFactors = [2]float64{0.6, 1.0 / 0.6}
+
+// probePoints returns the parameter vectors the identification measurement needs:
+// the truth first, then each parameter scaled by each probe factor in turn, holding
+// the other two at truth.
+//
+// Assembling the points before evaluating any of them is what removes the redundant
+// work. Written as an advantage(i, factor) helper, this re-evaluated the surface AT
+// TRUTH once per probe — six identical 500-step runs for a value that cannot vary,
+// since the surface config is fixed-seed and the substituted text is identical every
+// time.
+func probePoints() [][3]float64 {
+	points := make([][3]float64, 0, 1+3*len(probeFactors))
+	points = append(points, trueRates)
+	for i := range trueRates {
+		for _, factor := range probeFactors {
+			off := trueRates
+			off[i] *= factor
+			points = append(points, off)
+		}
 	}
-	off := trueRates
-	off[i] *= factor
-	atOff, err := loglikeAt(off)
-	if err != nil {
-		return 0, err
+	return points
+}
+
+// advantagesFrom converts the probe evaluations back into the per-parameter
+// advantage pairs — how many nats the true value beats each off-truth value by,
+// where positive means the surface prefers the truth, which is what identification
+// means. It expects exactly what probePoints laid out, in that order.
+func advantagesFrom(loglikes []float64) [][2]float64 {
+	atTruth := loglikes[0]
+	advantages := make([][2]float64, len(trueRates))
+	for i := range advantages {
+		offset := 1 + i*len(probeFactors)
+		advantages[i] = [2]float64{
+			atTruth - loglikes[offset],
+			atTruth - loglikes[offset+1],
+		}
 	}
-	return atTruth - atOff, nil
+	return advantages
 }
 
 // effectiveSampleSize draws proposals from the config's own proposal distribution,
@@ -137,18 +164,23 @@ func advantage(i int, factor float64) (float64, error) {
 func effectiveSampleSize() (ess float64, runnerUpGap float64, err error) {
 	// Fixed seed: this is a measurement that has to be reproducible in CI, and the
 	// claim's recorded number would otherwise move on every run.
+	//
+	// EVERY draw is taken before ANY is evaluated, and that ordering is load-bearing
+	// rather than stylistic. The proposals come off one shared random stream, so
+	// drawing them inside concurrent evaluations would let goroutine scheduling decide
+	// which vector each draw became — the set would differ run to run and the
+	// recorded ESS would stop being reproducible. Drawn serially here, the sixteen
+	// vectors are the same sixteen in the same order as when this loop did both jobs.
 	random := rand.New(rand.NewSource(7))
-	loglikes := make([]float64, 0, essProposals)
-	for range essProposals {
-		var at [3]float64
-		for i := range at {
-			at[i] = random.NormFloat64()*math.Sqrt(proposalVariance[i]) + priorRates[i]
+	draws := make([][3]float64, essProposals)
+	for d := range draws {
+		for i := range draws[d] {
+			draws[d][i] = random.NormFloat64()*math.Sqrt(proposalVariance[i]) + priorRates[i]
 		}
-		loglike, err := loglikeAt(at)
-		if err != nil {
-			return 0, 0, err
-		}
-		loglikes = append(loglikes, loglike)
+	}
+	loglikes, err := inParallel(draws, loglikeAt)
+	if err != nil {
+		return 0, 0, err
 	}
 	best, second := math.Inf(-1), math.Inf(-1)
 	for _, loglike := range loglikes {
@@ -248,20 +280,14 @@ func observedBehaviour() ([]claims.Claim, error) {
 
 	// ── Identification: does the surface peak at the truth? ────────────────────
 	//
-	// Evaluated at 0.6x and 1.67x each parameter — multiplicative and symmetric in
-	// log space, so neither side is favoured by the choice of probe.
-	advantages := make([][2]float64, 3)
-	for i := range advantages {
-		below, err := advantage(i, 0.6)
-		if err != nil {
-			return nil, err
-		}
-		above, err := advantage(i, 1.0/0.6)
-		if err != nil {
-			return nil, err
-		}
-		advantages[i] = [2]float64{below, above}
+	// Every probe point is laid out first, then all of them are evaluated in one
+	// batch. See probePoints for why they are assembled rather than evaluated as
+	// they are needed.
+	loglikes, err := inParallel(probePoints(), loglikeAt)
+	if err != nil {
+		return nil, err
 	}
+	advantages := advantagesFrom(loglikes)
 
 	identification := []struct {
 		id        string
@@ -382,12 +408,12 @@ func observedBehaviour() ([]claims.Claim, error) {
 	weakBest := math.Inf(1)
 	strongObservations := make([]claims.Observation, 0, len(settings))
 	weakObservations := make([]claims.Observation, 0, len(settings))
-	for _, s := range settings {
-		got, err := recoverAt(s)
-		if err != nil {
-			return nil, err
-		}
-		errors := relativeErrors(got, s.truth)
+	recovered, err := inParallel(settings, recoverAt)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range settings {
+		errors := relativeErrors(recovered[i], s.truth)
 		// The worst of the two strongly-identified coordinates, per setting.
 		worst := math.Max(errors[0], errors[1])
 		strongWorst = math.Max(strongWorst, worst)
