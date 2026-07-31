@@ -41,13 +41,21 @@
 // tests say so. Describing them as fitted to anything would be false, and fitting them
 // would need its own pre-registration.
 //
-// # A model-internal trade-off worth recording as a direction
+// # A model-internal trade-off, now claimed rather than only noted
 //
 // Cancellation here removes a fraction of RESTING volume, so any depth-stabilising work
 // it takes on shows up as a depth/cancellation correlation, while depth-damped arrivals
 // put that same work into a depth/arrival correlation instead. The book needs a brake,
 // and in this vocabulary each available brake couples depth to one of the two flows.
-// Whether real books evade that is unmeasured here.
+// The brake therefore MOVED rather than vanished, and that is pinned as
+// depth_stabilisation_moves_the_brake_onto_the_arrival_side: -0.116 on the arrival side
+// against -0.002 on the cancellation side.
+//
+// Whether real books evade the trade-off is measured, but not here — the Binance
+// segments cannot be redistributed, so nothing in this package may depend on them.
+// DECISIONS.md carries that comparison, and the short version is that the real
+// signature is not this one: on every segment recorded, BOTH flows are mildly
+// anti-correlated with depth, where this model concentrates the whole brake on one.
 //
 // # An engine parameterisation error, found and fixed
 //
@@ -78,6 +86,14 @@ const (
 	driftCeiling    = 1.3
 	couplingCeiling = 0.2
 	spreadSDFloor   = 0.1
+
+	// brakeBound pins where the depth-stabilising force sits: the arrival correlation
+	// below it, the cancellation correlation above it. Unlike the three above it is
+	// DESCRIPTIVE and post-hoc — chosen after measuring, to hold a structural fact the
+	// model already has, not to score a prediction. It is stated as a bound anyway so
+	// that a change quietly moving the brake back onto cancellation breaks a claim
+	// rather than passing silently.
+	brakeBound = -0.05
 
 	settleFrom  = 100
 	emptySpread = 99.0
@@ -236,6 +252,43 @@ func ObservedBehaviour() []claims.Claim {
 			Observations: []claims.Observation{
 				{Label: "mean spread", Value: m.spread},
 				{Label: "spread sd", Value: m.spreadSD},
+			},
+			Binding: binding,
+		},
+		{
+			ID: "depth_stabilisation_moves_the_brake_onto_the_arrival_side",
+			Statement: "The book needs a brake, and in this model's vocabulary every " +
+				"available brake couples depth to one of the two flows: cancellation " +
+				"removes a fraction of RESTING volume, so any stabilising work it does " +
+				"shows up as a depth/cancellation correlation, while damping arrivals by " +
+				"depth puts that same work into a depth/ARRIVAL correlation instead. So " +
+				"the brake did not disappear when the coupling broke, it MOVED — depth " +
+				"against arrivals reads -0.116, while depth against cancellations sits at " +
+				"-0.002. This is the price of " +
+				"[[prediction_h_stabilising_depth_through_arrivals_keeps_the_coupling_broken]], " +
+				"recorded so the trade-off is visible rather than only the half of it that " +
+				"passed.",
+			Gate:  "2.2",
+			Phase: phase,
+			Data:  dataset,
+			Unit:  "Pearson correlation between resting depth and each of the two flows",
+			Limitations: "The SIGN is forced: arrival intensity is damped by resting " +
+				"depth, so a negative correlation is what the config states and finding " +
+				"one is not a discovery. What this records is the magnitude and which " +
+				"flow carries the brake. It is model-internal — no market number appears " +
+				"in this package, and whether real books evade the trade-off by splitting " +
+				"the brake across both flows needs data that cannot be redistributed, so " +
+				"that comparison lives in DECISIONS.md instead of here. The -0.05 bounds " +
+				"are descriptive and post-hoc, not pre-registered predictions.",
+			Thresholds: []claims.Threshold{
+				{ObsIndex: 0, GreaterThan: false, Ref: brakeBound,
+					RefLabel: "-0.05 (descriptive)"},
+				{ObsIndex: 1, GreaterThan: true, Ref: brakeBound,
+					RefLabel: "-0.05 (descriptive)"},
+			},
+			Observations: []claims.Observation{
+				{Label: "depth vs arrivals", Value: m.depthArrival},
+				{Label: "depth vs cancellations", Value: m.coupling},
 			},
 			Binding: binding,
 		},

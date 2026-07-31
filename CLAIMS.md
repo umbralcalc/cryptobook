@@ -158,6 +158,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 
 ## Phase 2 — Residual diagnostics
 
+### `depth_stabilisation_moves_the_brake_onto_the_arrival_side`
+
+> The book needs a brake, and in this model's vocabulary every available brake couples depth to one of the two flows: cancellation removes a fraction of RESTING volume, so any stabilising work it does shows up as a depth/cancellation correlation, while damping arrivals by depth puts that same work into a depth/ARRIVAL correlation instead. So the brake did not disappear when the coupling broke, it MOVED — depth against arrivals reads -0.116, while depth against cancellations sits at -0.002. This is the price of [[prediction_h_stabilising_depth_through_arrivals_keeps_the_coupling_broken]], recorded so the trade-off is visible rather than only the half of it that passed.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — depth-dependent-arrivals generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestDepthDependentArrivals/depth_stabilisation_moves_the_brake_onto_the_arrival_side`](pkg/arrivals/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and each of the two flows — depth vs arrivals -0.12 · depth vs cancellations -0.00 (asserts depth vs arrivals < -0.05 (descriptive), depth vs cancellations > -0.05 (descriptive))
+- **Does not support:** The SIGN is forced: arrival intensity is damped by resting depth, so a negative correlation is what the config states and finding one is not a discovery. What this records is the magnitude and which flow carries the brake. It is model-internal — no market number appears in this package, and whether real books evade the trade-off by splitting the brake across both flows needs data that cannot be redistributed, so that comparison lives in DECISIONS.md instead of here. The -0.05 bounds are descriptive and post-hoc, not pre-registered predictions.
+
 ### `prediction_a_a_shared_driver_couples_arrivals_and_cancellations`
 
 > Prediction A, PASSED. A shared per-step activity factor makes arrivals and cancellations move together, where both earlier models had them independent at about zero.

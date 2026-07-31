@@ -1105,10 +1105,69 @@ coupled cancellations to depth because that was their only way to conserve a boo
 real books conserve on the *arrival* side instead, which is why their cancellation
 flow shows no depth dependence.
 
-### The mismatch that remains, and it is not small
+### The mismatch that remains — restated 2026-07-31, with its numbers
 
-`corr(depth, arrivals)` is the one axis the model misses, and the reason is now
-established — after a correction to my own reference number.
+This section previously asserted that `corr(depth, arrivals)` was the axis the model
+missed and that the reason was established, **without stating either the numbers or the
+reason**. An assertion with no measurement behind it is the exact failure mode
+`CLAIMS.md` exists to prevent, and it should not have survived in this document. It is
+restated below from measurements re-run today, and the model side is now pinned as a
+claim — `depth_stabilisation_moves_the_brake_onto_the_arrival_side` — rather than living
+only in prose.
+
+**The model, and every earlier variant:**
+
+| | `corr(depth, arrivals)` | `corr(depth, cancels)` |
+|---|---|---|
+| attrition model | — | +0.638 |
+| priced | −0.015 | +0.638 |
+| churn | +0.019 | +0.596 |
+| **depth-damped arrivals** | **−0.116** | **−0.002** |
+
+**Binance spot, all five concurrently-recorded segments plus the original capture:**
+
+| segment | `corr(depth, arrivals)` | `corr(depth, cancels)` |
+|---|---|---|
+| BTCUSDT (original 8-min capture) | −0.212 | −0.123 |
+| BTCUSDT | −0.267 | −0.220 |
+| ETHUSDT | −0.339 | −0.246 |
+| SOLUSDT | −0.121 | −0.074 |
+| XRPUSDT | −0.131 | −0.015 |
+| DOGEUSDT | −0.206 | −0.078 |
+
+#### The mismatch is real but it is NOT large, and the earlier framing was wrong
+
+The model gets the **sign** right and lands at the weak edge of the observed range:
+−0.116 against a real span of −0.121 to −0.339. It is about half the original capture's
+−0.212 and about a third of ETHUSDT's. So "the one axis the model misses" overstates it —
+on this axis alone the model is closer to the market than on any other diagnostic in
+Spike 2.2, where the failures were sign reversals and three orders of magnitude.
+
+#### What the numbers actually show is a different mismatch, and it is structural
+
+Read the two columns together rather than one at a time. **On every real segment BOTH
+flows are mildly anti-correlated with depth**, and by comparable amounts — arrivals
+somewhat the stronger of the two. The model puts −0.116 on one flow and −0.002 on the
+other. Every earlier variant is worse in the same way, concentrating everything on one
+flow and often with the wrong sign.
+
+That is the trade-off named above, seen from the data side: in this model's vocabulary a
+brake couples depth to exactly one flow, so no setting of it can produce two comparable
+mild anti-correlations. Real books do not appear to concentrate their brake.
+
+#### What this does not establish, and one confound that could explain all of it
+
+The paired-negative reading is a **pattern in six segments, not a mechanism**. Nothing
+here identifies what produces it, and no model in this project has been fitted to it.
+
+The confound is specific and already declared in PREREGISTRATION.md: arrivals and
+cancellations are both **inferred from net depth changes** rather than observed as
+messages. Both correlations therefore run through one inference path, and an artefact of
+that path could produce mild negatives in both columns on every segment at once —
+including on segments that share no other property. Replicating across five instruments
+does not touch this, because they were all measured the same way. Until the flows are
+observed as messages rather than inferred, the paired-negative signature is a candidate
+target for a model, **not a fact about order flow** to be fitted against.
 
 ### What this does not establish
 
