@@ -567,3 +567,144 @@ the only other window is the older BTCUSDT capture. All five are USDT majors; no
 illiquid pair was recorded. And arrivals and cancellations are both inferred from net depth
 changes rather than observed as messages, so a shared inference artefact could inflate Q on
 every segment at once. Replicating across instruments does not touch that.
+
+---
+
+## Depth-neutral churn — predictions fixed before `cfg/lob_churn_recycled.yaml` exists
+
+**Fixed 2026-07-31, committed before the config is written.**
+
+### The question this has to answer
+
+Restating `corr(depth, arrivals)` with its numbers turned up a sharper mismatch than the
+one that had been recorded. Reading the two correlation columns together rather than one
+at a time: **on every Binance segment BOTH flows are mildly anti-correlated with depth**,
+arrivals somewhat the stronger. Every model this project has built concentrates the whole
+depth-stabilising brake on ONE flow — the depth-damped arrivals model reads −0.116 on
+arrivals against −0.002 on cancellations, and the earlier variants put +0.6 on
+cancellations with the wrong sign.
+
+So: **can a model produce two comparable mild anti-correlations with depth, without
+losing the contemporaneous co-movement that is the strongest real signature?**
+
+### Feasibility, checked before designing — and it constrains the mechanism
+
+`lag(name, n)` reads a partition's **committed state** n rows back. It cannot read an
+intermediate binding from the same step: a bare field name or an upstreams alias only
+ever gives row 0. Two consequences, both verified by running a throwaway config rather
+than reasoned about:
+
+- Per-level arrivals must be **promoted into the state row** (`fields:` plus `outputs:`),
+  because only the totals are carried today. The state row widens from 21 to 37.
+- `state_history_depth` must rise from 1 to 2.
+
+Verified: the promoted config loads and runs, 401 rows at width 37. **No correlation was
+computed from that run**, and the feasibility file was deleted rather than kept.
+
+### Why NOT the pure lag DECISIONS.md pointed at
+
+The recorded direction was "cancellations replacing what was just posted", a lagged
+coupling. Taken literally — `can(t) = f · arr(t−1)` and nothing else — that is predicted
+to fail **before it is built**, and the reasoning is stated here so the mixture below is
+not mistaken for a retreat after seeing a result:
+
+contemporaneous `corr(arrivals, cancels)` would become `corr(arr(t), arr(t−1))`, which is
+approximately **zero**, because the shared activity driver is an iid gamma draw per step
+with no persistence. That would trade the model's strongest match (+0.897, against +0.98
+real) for the weaker one being chased. Swapping one reproduced signature for another is
+not progress.
+
+### The mechanism, stated before measuring
+
+The arrival side is **unchanged**, so the brake and its damping stay exactly as scored.
+Cancellation gains a recycled term alongside the existing same-step churn:
+
+	can_i(t) = min( q_i , recycle · arr_i(t−1) + Poisson(churn_rate · decay_i · activity · dt) )
+
+- The **recycled** term is depth-neutral by construction: it depends on what was posted
+  at that level last step, not on what is resting there now. This is the part that is new.
+- The **same-step churn** term is retained unchanged, so contemporaneous co-movement keeps
+  a source.
+
+The route to T is indirect and is why T is uncertain rather than forced: the recycled term
+carries no depth term at all, but last step's arrivals were themselves damped by last
+step's depth, and depth is autocorrelated — so an anti-correlation can arrive at the
+cancellation flow through `q(t−1)` without any depth term ever being written into it.
+
+### One parameter is chosen, on one criterion, stated now
+
+`recycle = 0.5` — the **midpoint** between "no recycling" (the current model) and "all
+churn is recycled posting". Chosen as a midpoint before any run, **not fitted to any
+correlation**.
+
+If mean depth leaves the range the previous models produced, `churn_rate` may be re-set
+**once**, on the depth criterion alone, exactly as `arrival_scale` was for the previous
+mechanism. Nothing is adjusted against T, U, V or W.
+
+### Predictions
+
+Labelled T–W. The scored blocks above run A–M with no gaps, so N onwards is free —
+but N–S are deliberately skipped rather than used. Those letters appear with older
+meanings in commits made before the label normalisation recorded at the top of this
+file, and skipping them means no letter in this repo ever carries two meanings
+across its history. A gap costs nothing; an ambiguity would cost the audit trail.
+
+**T — cancellations pick up a mild negative depth correlation.** `corr(depth, cancels)`
+lands in **[−0.30, −0.02]**, against −0.002 today and a real span of −0.015 to −0.246.
+
+**This is the test.** A two-sided bound on purpose: the point is to land in the observed
+band, not merely to move off zero, and overshooting past −0.30 would be a different
+failure from not moving at all. I do not know which way this comes out.
+
+**U — the arrival side stays the stronger brake.** `corr(depth, arrivals)` stays below
+**−0.05**, AND `|corr(depth, arrivals)| > |corr(depth, cancels)|`.
+
+The first half is near-forced and declared as such — the arrival damping is untouched. The
+**ordering** is the uncertain half, and it is the part that matches the real segments,
+where arrivals are the stronger of the two on all six.
+
+**V — the co-movement survives.** `corr(arrivals, cancels)` stays above **+0.7**, against
++0.897 today.
+
+The cost check, and **the prediction most at risk**. Half the cancellation flow now comes
+from a source that is contemporaneously uncorrelated with arrivals, so a drop is expected;
++0.7 is where the drop stops being acceptable. If V fails, the mechanism trades the
+model's best-matched signature for the one being chased, which is the outcome the "why not
+a pure lag" section above exists to avoid.
+
+**W — the book survives.** Depth 2nd-half / 1st-half ratio **< 1.3**, and spread standard
+deviation **> 0.1** ticks.
+
+The same cost check every mechanism here has had to pass. Recycling removes cancellation
+volume that no longer scales with what is resting, so the conservation argument is weaker
+than it looks.
+
+**Not predicted:** dispersion. The shared activity driver already produces it, it is
+unchanged by this mechanism, and claiming it here would be claiming a result the previous
+step established.
+
+### What each outcome means
+
+| T | U | V | W | reading |
+|---|---|---|---|---|
+| **pass** | pass | pass | pass | The first model in this project to reproduce the *paired* depth signature without losing the co-movement. It would make the correlation structure jointly reproducible for the first time, and calibration against real data becomes worth attempting — subject to the confound below, which is what stops this being conclusive. |
+| **fail (no movement)** | pass | pass | pass | Depth-neutral recycling is not enough to move the cancellation flow off zero. The indirect route through `q(t−1)` is too weak, and the paired signature needs something other than a lag — the mechanism hunt continues with one more candidate eliminated. |
+| **fail (overshoot)** | — | — | — | Past −0.30 the model has over-corrected and is no longer in the observed band. That is informative rather than fatal: it says the route through `q(t−1)` works and is too strong at `recycle = 0.5`, and the honest next step is a fresh pre-registration at a stated lower value, **not** a re-run of this one at a tuned one. |
+| pass | **fail** | — | — | The brake has moved onto cancellation, inverting the real ordering. That would mean recycling does not add a second mild brake so much as relocate the existing one. |
+| pass | pass | **fail** | — | One signature traded for another. Recorded as a failure of the mechanism, not a partial success — the co-movement is the strongest thing this model reproduces and it is not for sale. |
+| pass | pass | pass | **fail** | The correlation structure matches and the book does not survive. Same axis that killed the attrition-free variant, reached differently. |
+
+### The confound, declared before running rather than after
+
+**A full pass would not establish the mechanism is right.** The target signature may
+itself be a measurement artefact, and this is already recorded in this document: arrivals
+and cancellations are both **inferred from net depth changes** rather than observed as
+messages. Both real columns therefore run through one inference path, and an artefact of
+that path could produce mild negatives in both on every segment at once — including
+segments that share nothing else.
+
+So the strongest available reading of a pass is: *a pure-config mechanism exists that
+reproduces the measured signature*. Whether that signature is a property of order flow or
+of how this project infers order flow **cannot be settled with the data this project
+has**, and would need message-level data rather than depth snapshots. That is stated now
+so a pass cannot later be presented as more than it is.
