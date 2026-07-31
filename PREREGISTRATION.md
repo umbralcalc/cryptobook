@@ -565,8 +565,21 @@ All five segments share **one 8-minute window on one venue**, so a market-wide r
 peculiar to that window would not be caught, and temporal replication is barely tested —
 the only other window is the older BTCUSDT capture. All five are USDT majors; no genuinely
 illiquid pair was recorded. And arrivals and cancellations are both inferred from net depth
-changes rather than observed as messages, so a shared inference artefact could inflate Q on
+changes rather than observed as messages, so a shared inference artefact could inflate K on
 every segment at once. Replicating across instruments does not touch that.
+
+> **Qualified 2026-07-31.** That last sentence is true but was left broader than the code
+> warrants, and the correction belongs next to it. `pkg/feed/bucket.go` Decision 4
+> accumulates deltas **per depth update** rather than netting a bucket's open against its
+> close, for exactly this reason — and the feed is `@depth@100ms` against 1-second
+> buckets, so roughly ten updates back each row and the window in which a post and a pull
+> annihilate unseen is **100ms, not one second**. Decision 3 separates cancellations from
+> fills using the **trade stream**, a second source, rather than assuming a split. What
+> remains is genuinely residual: netting inside a single update at a single price, which
+> understates both counts together and does so more in busy periods, and the fact that
+> both counts are sums over the same update stream. The lot size is a shared divisor but
+> cannot touch a correlation, which is scale-invariant — it is a dispersion confound, and
+> it is already declared as L's.
 
 ---
 
@@ -770,3 +783,39 @@ artefact of that one inference path. A failure against a possibly-artefactual ta
 still a real failure of *this* mechanism, because T's +0.458 is nowhere near the band on
 any reading. But it means the hunt is chasing a target that has not itself been verified,
 and message-level data remains the only way to settle that.
+
+#### That confound was overstated, and the correction is recorded here rather than edited in
+
+The paragraph above and the pre-registered "confound, declared before running" both put
+more weight on the inference path than `pkg/feed/bucket.go` warrants. **The
+pre-registered text is left exactly as it was committed** — editing a pre-registration
+after scoring is what this file exists to prevent, even when the edit would be a
+correction — so the accurate version goes here, dated.
+
+The strong form of the worry is that the inference *manufactures* the signature by
+erasing churn. That is specifically designed against. Decision 4 accumulates deltas **per
+depth update** rather than netting a bucket's open against its close, and says why:
+netting "erases churn: volume added and removed inside the same bucket cancels out,
+understating both arrivals and cancellations, and understating them MORE the busier the
+market is." The feed is `@depth@100ms` against 1-second buckets, so about ten updates
+back each row and the annihilation window is **100ms rather than one second**. Decision 3
+splits cancellations from fills against the **trade stream** — a separate source, not an
+assumption.
+
+What survives is narrower and worth stating exactly:
+
+- Netting inside a **single update at a single price**, which understates both counts
+  together and more so when the market is busy.
+- Both counts being sums over the **same update stream**, so update frequency reaches
+  both.
+- No order identity at all, which is not a confound but a hard ceiling: queue position is
+  unanswerable from this feed at any bucket size.
+
+The lot size is a shared divisor and cannot affect a correlation, which is scale-invariant
+— it is a **dispersion** confound and is already declared as L's.
+
+**What this changes about the conclusions:** the target is on firmer ground than the
+paragraph above implies, so the eliminations measured against it are worth more rather
+than less. It does not rescue this mechanism, and it does not touch the finding that
+survives regardless — depth-neutral in the rate is not depth-neutral in the correlation is
+an identity, proved by construction, and holds whatever the market turns out to do.

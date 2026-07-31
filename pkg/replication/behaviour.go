@@ -220,7 +220,11 @@ func observedBehaviour() ([]claims.Claim, error) {
 				"cancellation counts are both inferred from net depth changes rather than " +
 				"observed as messages, so a shared inference artefact could inflate this. " +
 				"That confound is common to every segment and is not resolved by " +
-				"replicating across them.",
+				"replicating across them. It is narrower than it sounds, though: " +
+				"pkg/feed/bucket.go accumulates deltas per depth update rather than netting " +
+				"each bucket, against a 100ms feed and 1-second buckets, so the window in " +
+				"which a post and a pull annihilate unseen is 100ms rather than a whole row " +
+				"— the residual is netting within one update, not wholesale erasure.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: true, Ref: coMovementFloor,
 					RefLabel: "+0.9 (pre-registered, worst of five)"},

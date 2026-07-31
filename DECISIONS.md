@@ -1160,14 +1160,38 @@ mild anti-correlations. Real books do not appear to concentrate their brake.
 The paired-negative reading is a **pattern in six segments, not a mechanism**. Nothing
 here identifies what produces it, and no model in this project has been fitted to it.
 
-The confound is specific and already declared in PREREGISTRATION.md: arrivals and
-cancellations are both **inferred from net depth changes** rather than observed as
-messages. Both correlations therefore run through one inference path, and an artefact of
-that path could produce mild negatives in both columns on every segment at once —
-including on segments that share no other property. Replicating across five instruments
-does not touch this, because they were all measured the same way. Until the flows are
-observed as messages rather than inferred, the paired-negative signature is a candidate
-target for a model, **not a fact about order flow** to be fitted against.
+The confound is specific: arrivals and cancellations are both **inferred from net depth
+changes** rather than observed as messages, so both columns run through one inference
+path and an artefact there would show up in both at once — including on segments that
+share no other property. Replicating across five instruments does not touch it, because
+they were all measured the same way.
+
+**Corrected 2026-07-31, hours after first writing it.** The paragraph above originally
+ran further, claiming that artefact "could produce mild negatives in both columns on
+every segment at once", and it was written without re-reading `pkg/feed/bucket.go`. That
+overstates it, and in a direction that made the target look weaker than the evidence
+supports.
+
+The strong form — the inference *manufactures* the signature by erasing churn — is
+explicitly designed against. **Decision 4** accumulates deltas per depth update rather
+than netting a bucket's open against its close, giving that exact reason: netting "erases
+churn: volume added and removed inside the same bucket cancels out, understating both
+arrivals and cancellations, and understating them MORE the busier the market is." The
+feed is `@depth@100ms` against 1-second buckets, so roughly ten updates back each row and
+the annihilation window is **100ms, not one second**. **Decision 3** splits cancellations
+from fills against the trade stream — a second source rather than an assumption.
+
+What genuinely remains: netting inside a single update at a single price, which
+understates both counts together and does so more in busy periods; both counts being sums
+over the same update stream, so update frequency reaches both; and no order identity at
+all, which is a hard ceiling rather than a confound. The lot size is a shared divisor but
+cannot affect a correlation, being scale-invariant — that is a dispersion confound and is
+already declared as L's.
+
+So the paired-negative signature is still a candidate target rather than a settled fact
+about order flow, and message-level data is still the only way to settle it. But it is a
+**better-supported** candidate than the original wording implied, which means the
+mechanisms eliminated against it were eliminated on firmer ground, not softer.
 
 ### What this does not establish
 
@@ -1256,6 +1280,14 @@ does not rescue the mechanism — +0.458 is nowhere near the band on any reading
 does mean the search is aimed at a target that has not itself been verified. Settling that
 needs message-level data, which this project does not have and cannot obtain from the
 depth-snapshot feed it is allowed to use.
+
+That confound is **narrower than it was first written**, and the correction is above under
+"Corrected 2026-07-31": the churn-erasing version of it is designed against by
+`pkg/feed/bucket.go` Decision 4, and the residual annihilation window is 100ms rather than
+a full bucket. The target is therefore on firmer ground than the sentence above suggests.
+Note also which finding does not depend on it at all: **depth-neutral in the rate is not
+depth-neutral in the correlation** is an identity, forced by construction, and would hold
+if every market number in this project were withdrawn tomorrow.
 
 
 ## Gate 3.4 — Invariant A boundary (OPEN, evidence gathered)
