@@ -15,13 +15,23 @@
 //
 // # What is and is not established
 //
-// Predictions E, F and G were fixed in PREREGISTRATION.md and committed before the model
-// existed; all three pass. But only H was genuinely uncertain — G was near-forced (the
-// damping parameter was chosen to produce a stationary depth) and I is a cost check.
-// **H is the result**: cancellations contain no depth term, but depth is now
-// anti-correlated with arrivals and arrivals share the activity driver with
-// cancellations, so the indirect path could have reintroduced a coupling of either sign.
-// It did not.
+// Predictions G, H and I were fixed in PREREGISTRATION.md and committed before the model
+// existed; all three pass. G was near-forced (the damping parameter was chosen to produce
+// a stationary depth) and I is a cost check.
+//
+// H was recorded as the one genuinely uncertain prediction, on the argument that arrivals
+// and cancellations share the activity driver so an indirect path could have reintroduced
+// a coupling of either sign. **That argument does not survive, and is withdrawn as of
+// 2026-07-31.** The driver is drawn iid per step; the depth this correlates against is
+// depth at the START of the step, so it depends on activity only up to t-1, while
+// cancellation depends on activity at t. They are independent by construction, so this
+// correlation sits near zero whatever mechanism is present — the indirect path cannot
+// carry a contemporaneous correlation at all.
+//
+// What H still establishes is narrower and worth keeping: no depth term leaked into
+// cancellation. What it does NOT establish is that a coupling was available and avoided.
+// That structural point is also why persistence is the next thing tried — see
+// PREREGISTRATION.md's X-AB block.
 //
 //	                        attrition model   this model
 //	depth drift                   2.72          1.008
@@ -174,26 +184,33 @@ func ObservedBehaviour() []claims.Claim {
 	return []claims.Claim{
 		{
 			ID: "prediction_h_stabilising_depth_through_arrivals_keeps_the_coupling_broken",
-			Statement: "Prediction H, PASSED, and it is the one that was genuinely " +
-				"uncertain. Moving the depth-stabiliser onto the arrival side leaves " +
-				"cancellation as pure churn with no depth term — but depth is now " +
-				"anti-correlated with arrivals, and arrivals share the activity driver " +
-				"with cancellations, so that indirect path could have reintroduced a " +
-				"depth/cancellation correlation of either sign. It did not: the model " +
-				"reads -0.002, against the attrition model's +0.638. Depth CAN be " +
-				"stabilised " +
-				"without the coupling coming back.",
+			Statement: "Prediction H, PASSED. Moving the depth-stabiliser onto the " +
+				"arrival side leaves cancellation as pure churn with no depth term, and " +
+				"the coupling stays broken: the model reads -0.002, against the attrition " +
+				"model's +0.638. Depth CAN be stabilised without the coupling coming " +
+				"back. This was recorded at the time as the block's one GENUINELY " +
+				"UNCERTAIN prediction, on the argument that arrivals and cancellations " +
+				"share the activity driver so an indirect path could have reintroduced a " +
+				"coupling of either sign. That framing was wrong and is withdrawn — see " +
+				"the qualification below.",
 			Gate:  "2.2",
 			Phase: phase,
 			Data:  dataset,
 			Unit: "Pearson correlation between resting depth and cancellation flow; " +
 				"and between per-step arrival and cancellation counts",
-			Limitations: "A correlation structure is not a calibrated model. One " +
-				"parameter was fitted, to mean depth, with no correlation visible while " +
-				"choosing it — but reproducing correlations is weaker than reproducing " +
-				"the dynamics that generate them — and there is NO real-market evidence " +
-				"in this package at all. It says the model can hold the coupling broken " +
-				"while stabilising depth, not that real books work this way.",
+			Limitations: "QUALIFIED 2026-07-31: this was NEARER TO FORCED than it was " +
+				"recorded as being, and the reason is structural. The activity driver is " +
+				"drawn iid per step; the depth this correlates against is depth at the " +
+				"START of the step, so it depends on activity only up to t-1, while " +
+				"cancellation depends on activity at t. Those are independent by " +
+				"construction, so this correlation sits near zero WHATEVER mechanism is " +
+				"present — the indirect path the original statement worried about cannot " +
+				"carry a contemporaneous correlation at all. The measured -0.002 still " +
+				"establishes that no depth term leaked into cancellation, which is a real " +
+				"and checkable property, but it is not evidence that a coupling was " +
+				"available and avoided. Separately: a correlation structure is not a " +
+				"calibrated model, one parameter was fitted to mean depth, and there is " +
+				"NO real-market evidence in this package at all.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: false, Ref: couplingCeiling,
 					RefLabel: "+0.2 (pre-registered)"},

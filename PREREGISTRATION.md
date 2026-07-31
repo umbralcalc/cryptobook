@@ -401,6 +401,26 @@ depth is now anti-correlated with arrivals and arrivals share the activity drive
 cancellations, so the indirect path could have reintroduced a coupling of either sign. It
 did not.
 
+> **Withdrawn 2026-07-31.** The paragraph above is wrong about *why* H was safe, and the
+> bound and the measurement are untouched by the correction — only the claim that H was
+> uncertain. The indirect path it relies on runs through the shared activity driver, and
+> that driver is drawn **iid per step**. The depth H correlates against is depth at the
+> **start** of the step, depending on activity only up to `t−1`, while cancellation
+> depends on activity at `t`; they are independent by construction. So
+> `corr(depth, cancels)` sits near zero whatever mechanism is present, and **H could not
+> have failed for the reason that made it look risky.**
+>
+> H still establishes that no depth term leaked into cancellation. It does not establish
+> that a coupling was available and avoided. Recorded as a withdrawal of the reasoning
+> rather than an edit to it, for the same reason the labels were normalised in place and
+> the scored numbers were not: what was written is what was thought at the time.
+>
+> The point generalises — every model here has used an iid driver, so every near-zero
+> cancellation-side reading has been partly structural. Large readings are unaffected
+> (the recycled model's +0.458 is not what a blind measurement produces), so it is the
+> near-zero *passes* that were weaker evidence than they appeared. That is what makes a
+> persistent driver the next mechanism rather than one candidate among several.
+
 **So depth can be stabilised without the coupling returning**, and the mechanism that
 does it is the economically obvious one: less incentive to join a long queue. That is a
 statement about this model alone: nothing in this section is compared against market

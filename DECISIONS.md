@@ -1100,6 +1100,29 @@ sign. It did not. **Depth can be stabilised without the coupling returning**, an
 mechanism that does it is the economically obvious one: less incentive to join a long
 queue.
 
+> **Withdrawn 2026-07-31: H was nearer to forced than the two paragraphs above claim.**
+> The argument for its uncertainty ran through the shared activity driver — and that
+> path cannot carry a contemporaneous correlation. The driver is drawn **iid per step**;
+> the depth this correlates against is depth at the **start** of the step, so it depends
+> on activity only up to `t−1`, while cancellation depends on activity at `t`. Those are
+> independent by construction, so `corr(depth, cancels)` sits near zero **whatever
+> mechanism is present**, and H could not have failed for the reason it was thought to
+> be risky.
+>
+> What H still establishes is real and worth keeping: no depth term leaked into
+> cancellation, which is a checkable property of the config. What it does not establish
+> is that a coupling was available and avoided. "H is the result" overstates it; the
+> block's honest summary is that all three predictions were closer to scaffolding than
+> one of them was recorded as being.
+>
+> **This generalises past H**, which is why it is worth the space. Every model in this
+> project has used an iid driver, so every ≈0 reading on the cancellation side has been
+> partly structural rather than mechanistic. It does not touch readings that came out
+> LARGE — the recycled model's +0.458 is not something a blind measurement produces — so
+> the eliminations that turned on large positives stand unaffected. It is the near-zero
+> passes that were weaker evidence than they looked, and that is what makes a persistent
+> driver the next thing to try rather than one option among several.
+
 Spike 2.2's original failure is therefore explained. The minimal and priced models
 coupled cancellations to depth because that was their only way to conserve a book;
 real books conserve on the *arrival* side instead, which is why their cancellation
