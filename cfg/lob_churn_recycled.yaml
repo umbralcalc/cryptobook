@@ -34,7 +34,7 @@
 #
 # ── THE RESULT: IT CAME OUT POSITIVE, AND THE MODEL IS KEPT ANYWAY ────────────
 #
-# T, U and V all FAILED; only W passed. corr(depth, cancels) came out at +0.458 — the
+# T, U and V all FAILED; only W passed. corr(depth, cancels) came out at +0.560 — the
 # OPPOSITE SIGN, and a stronger coupling than the +0.37 of the minimal model this line
 # of work began by rejecting.
 #
@@ -60,18 +60,25 @@
 # So the same-step churn term is RETAINED unchanged, to keep contemporaneous
 # co-movement a source. Prediction V is the cost check on exactly this.
 #
-# ── WHAT lag() FORCED ON THE LAYOUT ───────────────────────────────────────────
+# ── WHY THE STATE ROW IS 37 WIDE, AND A LAG-LENGTH ERROR THAT WAS MADE HERE ──
 #
-# lag(name, n) reads a partition's COMMITTED STATE n rows back — a bare field name or
-# an upstreams alias only ever gives row 0, so it cannot see an intermediate binding
-# from the same step. Per-level arrivals therefore have to be promoted into the state
-# row, which is why posted_bid and posted_ask exist and why the row is 37 wide rather
-# than 21. They are APPENDED, so indices 0-20 stay identical to cfg/lob_arrivals.yaml
-# and the two models remain directly comparable.
+# A binding cannot see another binding's PREVIOUS value, only the committed state row.
+# Per-level arrivals therefore have to be promoted into that row, which is why
+# posted_bid and posted_ask exist and why the row is 37 wide rather than 21. They are
+# APPENDED, so indices 0-20 stay identical to cfg/lob_arrivals.yaml and the two models
+# remain directly comparable.
 #
-# state_history_depth is 2 for the same reason: lag(x, 1) needs the row to still be
-# there. At the first step the lagged row is the zero-filled init state, so nothing is
-# recycled until step 2 — the scored window starts well past that.
+# THE ERROR: this file first wrote `recycle * lag(posted_bid, 1)`. A BARE field name is
+# already row 0 — the previous committed step — so `posted_bid` IS arr(t-1), and
+# lag(posted_bid, 1) is arr(t-2). The model first scored was a two-step recycler against
+# a pre-registration that said one step.
+#
+# Corrected to the bare form and re-scored: all four verdicts unchanged, with T's
+# failure STRONGER at +0.560 against the two-step version's +0.458 — which is what the
+# identity argument predicts, since a shorter lag shares more with what is resting now.
+# Both numbers are kept in DECISIONS.md. state_history_depth is back to 1: no lag() is
+# used, and at the first step posted_* is the zero-filled init state, so nothing is
+# recycled until step 2, well before the scored window.
 main:
   partitions:
   - name: lob_recycled
@@ -123,7 +130,7 @@ main:
        0, 0, 0, 52, 2,
        0, 0, 0, 0, 0, 0, 0, 0,
        0, 0, 0, 0, 0, 0, 0, 0]
-    state_history_depth: 2
+    state_history_depth: 1
     seed: 20260731
   expressions:
   - partition: lob_recycled
@@ -167,8 +174,8 @@ main:
     # back out of the committed state row. Depth-neutral: what was posted, not what is
     # resting. cancel_rate is still zero and the attrition term is kept as a named zero
     # so a stray reintroduction stays obvious — it contributes nothing.
-    - {name: recycled_bid, expr: "recycle * lag(posted_bid, 1)"}
-    - {name: recycled_ask, expr: "recycle * lag(posted_ask, 1)"}
+    - {name: recycled_bid, expr: "recycle * posted_bid"}
+    - {name: recycled_ask, expr: "recycle * posted_ask"}
     - {name: can_bid, expr: "min(bid, churn_bid + recycled_bid + poisson(cancel_rate * bid * dt))"}
     - {name: can_ask, expr: "min(ask, churn_ask + recycled_ask + poisson(cancel_rate * ask * dt))"}
 

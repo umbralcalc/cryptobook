@@ -746,10 +746,10 @@ so a pass cannot later be presented as more than it is.
 
 | | prediction | measured | |
 |---|---|---|---|
-| **T** | `corr(depth, cancels)` in [−0.30, −0.02] | **+0.458** | **FAIL — opposite sign** |
-| **U** | arrival brake below −0.05 **and** the stronger | −0.110 vs +0.458; margin **−0.348** | **FAIL** on the ordering |
-| **V** | `corr(arrivals, cancels)` > +0.7 | **+0.436** | **FAIL** |
-| **W** | drift < 1.3, spread sd > 0.1 | 1.066, 0.579 | pass |
+| **T** | `corr(depth, cancels)` in [−0.30, −0.02] | **+0.560** | **FAIL — opposite sign** |
+| **U** | arrival brake below −0.05 **and** the stronger | −0.117 vs +0.560; margin **−0.443** | **FAIL** on the ordering |
+| **V** | `corr(arrivals, cancels)` > +0.7 | **+0.432** | **FAIL** |
+| **W** | drift < 1.3, spread sd > 0.1 | 1.020, 0.615 | pass |
 
 One value moved after the predictions were committed and only one: `churn_rate`, from
 the inherited 1.15 to **0.55**, on mean depth alone. At 1.15 mean depth was 73.5 against
@@ -803,6 +803,21 @@ artefact of that one inference path. A failure against a possibly-artefactual ta
 still a real failure of *this* mechanism, because T's +0.458 is nowhere near the band on
 any reading. But it means the hunt is chasing a target that has not itself been verified,
 and message-level data remains the only way to settle that.
+
+#### Corrected 2026-07-31: the model first scored was not the model pre-registered
+
+This block's mechanism says `recycle · arr_i(t−1)`. The implementation wrote
+`lag(posted_bid, 1)`, which reaches **two** steps back — a bare field name is already row
+0, so `lag(x, 1)` goes one row further. The scored model was a two-step recycler.
+
+Corrected and re-scored, with **every verdict unchanged**: T +0.458 → **+0.560**, U's
+margin −0.348 → **−0.443**, V +0.436 → **+0.432**, W 1.066/0.579 → **1.020/0.615**. The
+table above carries the corrected figures; the originals are kept in DECISIONS.md.
+
+T's failure got *stronger*, which is what the identity argument predicts — a shorter lag
+shares more with what is currently resting — so the error left an unplanned second data
+point behind it. The predictions were not re-run until they passed; they were re-run
+because the implementation did not match what was pre-registered, and they failed again.
 
 #### That confound was overstated, and the correction is recorded here rather than edited in
 

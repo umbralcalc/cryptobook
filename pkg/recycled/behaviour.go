@@ -23,11 +23,24 @@
 // anywhere, but last step's arrivals were themselves damped by last step's depth, and
 // depth is autocorrelated.
 //
+// # A lag-length error, found and corrected before it changed a conclusion
+//
+// The pre-registered mechanism said arr(t-1). The first implementation wrote
+// lag(posted_bid, 1) — which is arr(t-2), because a BARE field name is already row 0,
+// the previous committed step, so lag(x, 1) reaches one row further back than that. The
+// model first scored was therefore not the model pre-registered.
+//
+// Corrected to the bare form and re-scored: ALL FOUR VERDICTS UNCHANGED, and T's
+// failure is STRONGER at +0.560 against the two-step version's +0.458. That is exactly
+// what the identity argument predicts — a shorter lag shares MORE with what is resting
+// now — so the accident left an unplanned second data point supporting the explanation.
+// Both numbers are kept on the record in DECISIONS.md.
+//
 // # The answer is no, and the reason is an identity rather than a rate
 //
 // T, U and V all FAILED; only the survival check W passed. T failed in the direction the
 // pre-registered outcome table did not contain — the coupling came back POSITIVE at
-// +0.458, stronger than the +0.37 of the minimal model this whole line of work started
+// +0.560, stronger than the +0.37 of the minimal model this whole line of work started
 // from.
 //
 // The mechanism is worth stating plainly because it generalises past this config.
@@ -40,7 +53,7 @@
 // arrivals inherits this coupling, whatever the lag or the coefficient. The reasoning
 // that picked a half-weight mixture over a pure lag was sound as far as it went and did
 // not go far enough — it examined what lagging costs (V, correctly predicted in
-// direction, badly underestimated in size: +0.897 to +0.436) without examining what
+// direction, badly underestimated in size: +0.897 to +0.432) without examining what
 // keying to arrivals buys.
 //
 // # What is scored here, and what is not
@@ -88,7 +101,7 @@ const (
 
 	// pinnedCouplingFloor is NOT a pre-registered bound. T's band is recorded above
 	// exactly as it was fixed and is deliberately left unused by any threshold — the
-	// measured +0.458 does not fail that band narrowly, it fails it by sign, so
+	// measured +0.560 does not fail that band narrowly, it fails it by sign, so
 	// asserting against the band would report the failure as a near miss. This floor
 	// pins the failure that actually happened, at a value far below it, so a future
 	// change that fixed the coupling breaks the claim loudly instead of passing.
@@ -178,7 +191,7 @@ func ObservedBehaviour() []claims.Claim {
 			ID: "prediction_t_recycling_reintroduces_the_depth_coupling_through_the_book_identity",
 			Statement: "Prediction T, FAILED, and failed in the direction the outcome " +
 				"table did not contain. The pre-registered band was [-0.30, -0.02] and " +
-				"the measured correlation is +0.458 — not a weak version of the target " +
+				"the measured correlation is +0.560 — not a weak version of the target " +
 				"but the OPPOSITE SIGN, and stronger than the +0.37 the minimal model " +
 				"had. The reason is an accounting identity rather than a rate: " +
 				"cancellation was made proportional to arr(t-1), and arr(t-1) is what is " +
@@ -208,10 +221,10 @@ func ObservedBehaviour() []claims.Claim {
 		{
 			ID: "prediction_u_the_brake_ordering_inverts_when_cancellation_tracks_recent_arrivals",
 			Statement: "Prediction U, FAILED on the half that was actually being tested. " +
-				"Its forced half held — the inherited arrival damping still reads -0.110 " +
-				"— but the ORDERING inverted: the cancellation side now carries +0.458, " +
-				"four times the arrival side's magnitude and with the wrong sign, so the " +
-				"margin is -0.348 where U required it positive. Every Binance segment has " +
+				"Its forced half held — the inherited arrival damping still reads -0.117 " +
+				"— but the ORDERING inverted: the cancellation side now carries +0.560, " +
+				"nearly five times the arrival side's magnitude and with the wrong sign, so " +
+				"the margin is -0.443 where U required it positive. Every Binance segment has " +
 				"arrivals as the stronger brake; this model now has cancellation as the " +
 				"stronger ANTI-brake, which is further from the market than the model it " +
 				"was built to improve on.",
@@ -244,7 +257,7 @@ func ObservedBehaviour() []claims.Claim {
 				"out in advance — just not far enough. PREREGISTRATION.md argued a PURE " +
 				"lag would drive contemporaneous co-movement to about zero, because the " +
 				"activity driver is iid per step, and chose a half-weight mixture to " +
-				"avoid that. Half was already too much: +0.897 fell to +0.436, well " +
+				"avoid that. Half was already too much: +0.897 fell to +0.432, well " +
 				"under the +0.7 floor. So the cost of lagging scales faster than its " +
 				"weight, and the model sold its best-matched signature (real: +0.98) to " +
 				"buy a depth signature it did not get.",
@@ -270,8 +283,8 @@ func ObservedBehaviour() []claims.Claim {
 		{
 			ID: "prediction_w_the_book_survives_recycled_churn",
 			Statement: "Prediction W, PASSED, and it is the only one that did. The book " +
-				"stays conserved at a drift of 1.066 and the spread keeps a live " +
-				"distribution at 0.579 ticks of standard deviation. Recycling removes " +
+				"stays conserved at a drift of 1.020 and the spread keeps a live " +
+				"distribution at 0.615 ticks of standard deviation. Recycling removes " +
 				"cancellation volume that no longer scales with what is resting, leaving " +
 				"the arrival-side brake to hold the book alone, and it holds — so this " +
 				"mechanism fails on correlations rather than on survival, unlike the " +

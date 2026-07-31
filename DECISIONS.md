@@ -1287,6 +1287,41 @@ what lagging **costs** and never asked what keying cancellation to arrivals **bu
 which is exactly what T answered, badly. Predicting one side of a trade-off is not
 predicting the trade, and this is the clearest instance of that in the project so far.
 
+### A lag-length error, found 2026-07-31 and corrected before it changed a conclusion
+
+The pre-registered mechanism said `recycle · arr_i(t−1)`. The first implementation wrote
+`recycle * lag(posted_bid, 1)`, which is **arr(t−2)** — because a bare field name is
+already row 0, the previous committed step, so `lag(x, 1)` reaches one row further back
+than that. **The model first scored was not the model pre-registered.**
+
+Verified rather than reasoned about, with a counter promoted into a state row:
+
+| recorded `counter` | bare `counter` | `lag(counter, 1)` |
+|---|---|---|
+| 5 | 4 | 3 |
+
+Corrected to the bare form and re-scored:
+
+| | 2-step (first published) | 1-step (as pre-registered) | verdict |
+|---|---|---|---|
+| T `corr(depth, cancels)` | +0.458 | **+0.560** | fail, unchanged |
+| U margin | −0.348 | **−0.443** | fail, unchanged |
+| V `corr(arrivals, cancels)` | +0.436 | **+0.432** | fail, unchanged |
+| W drift / spread sd | 1.066 / 0.579 | **1.020 / 0.615** | pass, unchanged |
+
+**All four verdicts unchanged, and T's failure is stronger.** That is what the identity
+argument predicts — a shorter lag shares *more* with what is resting now — so the
+accident left behind an unplanned second data point supporting the explanation rather
+than undermining it. Both numbers are kept here for that reason.
+
+The published numbers were the two-step model's, so CLAIMS.md moved when this was fixed.
+A guard now asserts the bare spelling and rejects `lag(posted_…)` outright, so the error
+cannot recur silently.
+
+**Recorded here rather than in STOCHADEX_GAPS.md**, per that file's own rule: this was a
+misreading of documented behaviour — the engine states that a bare name gives row 0 —
+not an engine gap.
+
 ### Provenance of the one adjusted parameter
 
 `churn_rate` moved from the inherited 1.15 to **0.55**, once, on mean depth alone: at 1.15

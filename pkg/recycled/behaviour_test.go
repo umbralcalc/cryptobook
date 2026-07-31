@@ -52,22 +52,28 @@ func TestCancellationHasNoDepthTerm(t *testing.T) {
 	}
 }
 
-// TestTheRecycledTermReadsLastStepsArrivals pins the mechanism to the lag that defines
-// it. lag(x, 0) is x, which would make the term same-step recycling — a different
-// mechanism entirely, and one that would trivially inflate the co-movement V measures.
-func TestTheRecycledTermReadsLastStepsArrivals(t *testing.T) {
+// TestTheRecycledTermReadsExactlyOneStepBack pins the mechanism to the lag that
+// defines it, and guards a mistake that was actually made here.
+//
+// A BARE field name is already row 0 — the previous committed step — so `posted_bid` is
+// arr(t-1) and lag(posted_bid, 1) is arr(t-2). The first version of this config used
+// the lag form and therefore ran a two-step recycling model against a pre-registration
+// that said one step. Same-step recycling (which no spelling here produces, since a
+// binding cannot see itself) would be a different mechanism again, and would trivially
+// inflate the co-movement V measures.
+func TestTheRecycledTermReadsExactlyOneStepBack(t *testing.T) {
 	source := readConfig(t)
 	for _, required := range []string{
-		`{name: recycled_bid, expr: "recycle * lag(posted_bid, 1)"}`,
-		`{name: recycled_ask, expr: "recycle * lag(posted_ask, 1)"}`,
+		`{name: recycled_bid, expr: "recycle * posted_bid"}`,
+		`{name: recycled_ask, expr: "recycle * posted_ask"}`,
 	} {
 		if !strings.Contains(source, required) {
 			t.Errorf("%s is missing %s", configName, required)
 		}
 	}
-	// lag(x, 1) needs the row to still be kept.
-	if !strings.Contains(source, "state_history_depth: 2") {
-		t.Errorf("%s must keep 2 rows for lag(x, 1) to resolve", configName)
+	if strings.Contains(source, `expr: "recycle * lag(posted_`) {
+		t.Errorf("%s reads the posted volumes through lag(), which reaches TWO steps "+
+			"back and is not the pre-registered mechanism", configName)
 	}
 }
 
