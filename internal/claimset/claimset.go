@@ -35,6 +35,7 @@ import (
 	"github.com/umbralcalc/cryptobook/pkg/churn"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
 	"github.com/umbralcalc/cryptobook/pkg/lob"
+	"github.com/umbralcalc/cryptobook/pkg/persistent"
 	"github.com/umbralcalc/cryptobook/pkg/priced"
 	"github.com/umbralcalc/cryptobook/pkg/recovery"
 	"github.com/umbralcalc/cryptobook/pkg/recycled"
@@ -45,15 +46,16 @@ import (
 // providers is every phase package's claim provider. Order is irrelevant —
 // claims.Markdown sorts — so a provider can be appended without reshuffling.
 var providers = []func() []claims.Claim{
-	lob.ObservedBehaviour,       // the minimal LOB generator's responses
-	baseline.ObservedBehaviour,  // Spike 2.2: the synthetic control for the real-market diagnostics
-	churn.ObservedBehaviour,     // Spike 2.2: the churn model's pre-registered predictions, scored
-	arrivals.ObservedBehaviour,  // Spike 2.2: depth-dependent arrivals — the mechanism that holds
-	recycled.ObservedBehaviour,  // Spike 2.2: depth-neutral churn — the mechanism that does not
-	recovery.ObservedBehaviour,  // Spike 1.2: identification, ESS, recovery
-	windowing.ObservedBehaviour, // Gate 3.4: how calibration degrades with window length
-	stability.ObservedBehaviour, // Spike 4.2: the one output the minimal model supports
-	priced.ObservedBehaviour,    // Spike 4.2: two more, unlocked by prices and book-walking
+	lob.ObservedBehaviour,        // the minimal LOB generator's responses
+	baseline.ObservedBehaviour,   // Spike 2.2: the synthetic control for the real-market diagnostics
+	churn.ObservedBehaviour,      // Spike 2.2: the churn model's pre-registered predictions, scored
+	arrivals.ObservedBehaviour,   // Spike 2.2: depth-dependent arrivals — the mechanism that holds
+	recycled.ObservedBehaviour,   // Spike 2.2: depth-neutral churn — the mechanism that does not
+	persistent.ObservedBehaviour, // Spike 2.2: a persistent driver — the closest miss so far
+	recovery.ObservedBehaviour,   // Spike 1.2: identification, ESS, recovery
+	windowing.ObservedBehaviour,  // Gate 3.4: how calibration degrades with window length
+	stability.ObservedBehaviour,  // Spike 4.2: the one output the minimal model supports
+	priced.ObservedBehaviour,     // Spike 4.2: two more, unlocked by prices and book-walking
 }
 
 // NOT registered: pkg/crypto or pkg/replication.

@@ -61,10 +61,17 @@ main:
       # measured at, which is the only reason it is pinned. Fitting it to anything
       # would need its own pre-registration.
       arrival_scale: [19.0]
-      # The one value this file may re-set, once, on MEAN DEPTH alone, exactly as in
-      # the previous two blocks. Whatever it lands on, the sweep is recorded and no
-      # correlation is computed while choosing.
-      churn_rate: [1.15]
+      # RE-SET ONCE, ON MEAN DEPTH ALONE — 1.15 in cfg/lob_arrivals.yaml, 1.05 here.
+      #
+      # The activity-dependent damping thins the book, so at the inherited 1.15 mean
+      # depth was 188.9 against the 227.8-235.9 the previous two models produced. The
+      # one adjustment PREREGISTRATION.md permits was used. The sweep was on DEPTH ONLY
+      # and no correlation was computed while choosing: 0.85 -> 340.3, 0.90 -> 299.1,
+      # 0.95 -> 280.5, 1.00 -> 259.4, 1.05 -> 235.4.
+      #
+      # Nothing was adjusted against X, Y, Z, AA or AB, and this is the ONLY value that
+      # moved after 5c1081e fixed the predictions.
+      churn_rate: [1.05]
       # THE INNOVATION, not the driver. The driver is now AR(1) and these are the
       # parameters of what feeds it, chosen so the DRIVER's stationary marginal
       # matches the incumbent's exactly.

@@ -1348,6 +1348,62 @@ depth-neutral in the correlation** is an identity, forced by construction, and w
 if every market number in this project were withdrawn tomorrow.
 
 
+## A persistent driver: the closest miss, and the first correct ordering
+
+Predictions X–AB were committed in `5c1081e` before `cfg/lob_persistent.yaml` existed.
+X, Z and AB pass; **Y and AA fail, on magnitude rather than direction.**
+
+**Validity precondition met:** the `min()` clip bound on **4.21%** of level-steps against
+the pre-registered 5% ceiling, so Y and Z carry verdicts. Not comfortably — a thinner book
+would put this test's validity in question, and that margin is part of the result. This is
+the fault the churn block recorded and did not measure; here it was measured.
+
+| | prediction | measured | |
+|---|---|---|---|
+| X | `corr(depth, activity)` < −0.05 | **−0.307** | pass |
+| Y | cancels ∈ [−0.30,−0.01] **and** arrivals ∈ [−0.40,−0.05] | −0.286 ✓ / **−0.417 ✗** | **FAIL** by 0.017 |
+| Z | arrivals the stronger brake | 0.417 vs 0.286 | pass |
+| AA | `corr(arrivals, cancels)` > +0.85 | **+0.822** | **FAIL** |
+| AB | drift < 1.3, spread sd > 0.1 | 1.164, 0.530 | pass |
+
+### The finding, and it is a positive one for once
+
+| | this model | previous best | Binance range |
+|---|---|---|---|
+| `corr(depth, cancels)` | **−0.286** | −0.002 | −0.015 … −0.246 |
+| `corr(depth, arrivals)` | **−0.417** | −0.116 | −0.121 … −0.339 |
+| `corr(arrivals, cancels)` | +0.822 | +0.897 | +0.940 … +0.980 |
+
+**Both flows are negative against depth with arrivals the stronger — the real ordering,
+produced for the first time.** Every earlier model put the whole brake on one flow with
+the other at zero or the wrong sign; the recycled model inverted the ordering outright.
+The structural obstacle is gone: X establishes that depth now responds to the driver at
+all, which no iid-driver model could have shown whatever its mechanism.
+
+### Why the failures are one parameter rather than one mechanism
+
+The damping is at full strength — `s_eff = arrival_scale · act_ref/act`, so `q* ∝ 1/act`.
+That overshoots both depth correlations. It also costs co-movement, and by an identifiable
+route: arrivals now **saturate** in activity, being proportional to
+`act/(1 + q·act/(s·act_ref))` whose denominator grows with `act`, while cancellation stays
+proportional to it. Two flows that were both proportional to the driver now track it
+differently, so they track each other less closely.
+
+A weaker dependence — `(act_ref/act)^γ` with γ < 1 — would reduce both effects together.
+**That needs its own pre-registration.** Sweeping γ having seen which way X, Y and AA
+missed is the move PREREGISTRATION.md exists to prevent, and the saturation account is an
+explanation consistent with the numbers rather than an independently tested claim.
+
+### What this does not establish
+
+Nothing here is a calibration. `persistence`, the damping form and the innovation moments
+were all fixed in advance, and `churn_rate` moved once on mean depth alone (1.15 → 1.05,
+because the damping thinned the book to 188.9 against the previous models' 227.8–235.9).
+The target bands carry the standing confound — both real flows are inferred from net depth
+changes — so landing inside them would establish that a pure-config mechanism reproduces
+the measured signature, not that the signature is a property of order flow.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

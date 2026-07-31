@@ -178,6 +178,26 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations 0.62 (asserts arrivals vs cancellations > +0.5 (pre-registered))
 - **Does not support:** Near-certain by construction and recorded as such BEFORE the model was written: coupling two streams through one driver and then reporting that they are coupled is not evidence of anything. It is claimed only so it cannot later be presented as a discovery. It also reaches only +0.62, so it does not even match the magnitude.
 
+### `prediction_aa_activity_dependent_damping_costs_co_movement`
+
+> Prediction AA, FAILED. Co-movement fell from the previous model's +0.897 to +0.822, under the +0.85 floor. The floor was set BELOW the incumbent deliberately, to test that the mechanism did not break the co-movement rather than that it beat it, and it was not cleared. The cause is that arrivals now SATURATE in activity — arr is proportional to act / (1 + q*act/(s*ref)), whose denominator grows with act — while cancellation stays proportional to it, so the two flows track each other less closely than when both were proportional.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestPersistentDriver/prediction_aa_activity_dependent_damping_costs_co_movement`](pkg/persistent/behaviour_test.go)
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations 0.82 (asserts arrivals vs cancellations < +0.85 (the pre-registered floor it had to clear))
+- **Does not support:** Pinned as a CEILING so a future fix breaks it loudly. Measured at one damping strength; it establishes that full strength costs enough to miss the floor, not where the boundary lies. The saturation account is a mechanism explanation consistent with the number, not an independently tested claim — no sweep of the damping strength has been run, and running one after seeing this would need its own pre-registration.
+
+### `prediction_ab_the_book_survives_a_moving_equilibrium`
+
+> Prediction AB, PASSED. The equilibrium depth is now proportional to 1/activity, so the book is chasing a target that moves with a persistent driver rather than relaxing to a fixed one — conservation is less obvious than in any previous variant. It holds: drift 1.164 and a live spread distribution at 0.530 ticks of standard deviation.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestPersistentDriver/prediction_ab_the_book_survives_a_moving_equilibrium`](pkg/persistent/behaviour_test.go)
+- **Observed:** mean resting depth over the second half of the scored window divided by the first half (a conserved book gives ~1); spread sd in ticks over two-sided steps; and mean depth in lots — second half / first half 1.16 · spread sd 0.53 · mean depth 235.36 (asserts second half / first half < 1.3 (pre-registered), spread sd > 0.1 (pre-registered))
+- **Does not support:** Mean depth is NOT a result — churn_rate was re-set to 1.05 on exactly this quantity, the one adjustment the pre-registration permits, so it is provenance. Drift at 1.164 is the highest of any surviving model here and clears 1.3 with less room than the previous mechanism's 1.020, which is consistent with a moving equilibrium being harder to conserve around. A passing cost check on a mechanism whose two substantive predictions failed is not a partial success.
+
 ### `prediction_b_churn_fails_to_break_the_depth_coupling`
 
 > Prediction B, FAILED — and it was the one that mattered. The depth/cancellation coupling was predicted to collapse below +0.2 and instead stayed near where the priced model left it. Real markets read about zero. Making churn dominate the cancellation FLOW did not remove the depth dependence, because the cancellation PATH still contains depth-dependent terms: residual attrition drawn against resting volume, and the clip that stops volume going negative.
@@ -297,6 +317,36 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Enforced by:** [`TestDepthNeutralChurn/prediction_w_the_book_survives_recycled_churn`](pkg/recycled/behaviour_test.go)
 - **Observed:** mean resting depth over the second half of the scored window divided by the first half (a conserved book gives ~1); spread sd in ticks over two-sided steps; and mean depth in lots — second half / first half 1.02 · spread sd 0.61 · mean depth 235.89 (asserts second half / first half < 1.3 (pre-registered), spread sd > 0.1 (pre-registered))
 - **Does not support:** Mean depth is NOT a result — churn_rate was re-set to 0.55 on exactly this quantity, the one adjustment the pre-registration permits, so it is reported as provenance rather than as a finding. A passing cost check on a mechanism whose three substantive predictions failed is not a partial success: it says the failure is clean, not that anything works.
+
+### `prediction_x_a_persistent_driver_makes_depth_respond_to_activity`
+
+> Prediction X, PASSED, and it is the one that unlocked the rest. With an iid driver this correlation is structurally near zero — depth at the start of a step cannot depend on activity drawn during it — so no earlier model could have shown a depth response at all. Made AR(1) at 0.8, with the driver's stationary mean and variance held at the incumbent's so only autocorrelation changes, depth reads -0.307 against activity. The competing effect declared in advance, constant marketable consumption dragging depth down in quiet stretches, did not dominate.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestPersistentDriver/prediction_x_a_persistent_driver_makes_depth_respond_to_activity`](pkg/persistent/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and the latent activity driver — depth vs activity -0.31 (asserts depth vs activity < -0.05 (pre-registered))
+- **Does not support:** The SIGN is largely built in — the damping scale shrinks as activity rises, so q* is proportional to 1/act by construction. What was genuinely uncertain was whether it would survive the opposing constant-consumption effect and whether persistence would make it visible at all, and X answers those. It is model-internal: no market number appears in this package.
+
+### `prediction_y_the_paired_depth_signature_appears_but_the_arrival_side_overshoots`
+
+> Prediction Y, FAILED — narrowly, and on magnitude rather than direction. Both flows are now mildly negative against depth, which no earlier model achieved: cancellations read -0.286, inside the pre-registered [-0.30, -0.01] though near its floor, and arrivals read -0.417, OUTSIDE [-0.40, -0.05] by 0.017. Y required both bands at once and one is missed, so it fails. The paired signature exists; it is too strong.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestPersistentDriver/prediction_y_the_paired_depth_signature_appears_but_the_arrival_side_overshoots`](pkg/persistent/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and each flow; and the clip-binding rate, which is the validity precondition rather than a result — depth vs cancellations -0.29 · depth vs arrivals -0.42 · clip-binding rate, percent 4.21 (asserts depth vs cancellations < -0.01 (band ceiling), depth vs cancellations > -0.30 (band floor), depth vs arrivals < -0.40 (the band floor it fell BELOW), clip-binding rate, percent < 5% (validity precondition))
+- **Does not support:** A near miss is still a miss and the band does not move. The bands came from Binance segments whose flows are both INFERRED from net depth changes, so the target itself carries the standing confound. The clip-binding rate is reported because a binding clip would tie cancellation to depth mechanically and score the clip rather than the mechanism — at 4.2% it clears the pre-registered 5%, but not by much, so a thinner book would put this test's validity in question.
+
+### `prediction_z_the_brake_ordering_matches_the_market_for_the_first_time`
+
+> Prediction Z, PASSED. Arrivals are the stronger brake at -0.417 against cancellations' -0.286, which is the ordering all six Binance segments show and which no previous model here produced — the recycled model inverted it, and every earlier one put the whole brake on one flow with the other at zero or the wrong sign. Arrivals carry an extra negative path, being damped by depth directly while cancellation reaches depth only through the driver.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestPersistentDriver/prediction_z_the_brake_ordering_matches_the_market_for_the_first_time`](pkg/persistent/behaviour_test.go)
+- **Observed:** the margin by which the arrival correlation is the more negative; and the clip-binding rate — margin 0.13 · clip-binding rate, percent 4.21 (asserts margin > 0 (arrivals strictly the stronger), clip-binding rate, percent < 5% (validity precondition))
+- **Does not support:** Declared the WEAKEST of this block's predictions in advance, because the extra negative path makes the ordering close to expected. It is scored because it holds on all six real segments and because getting the ordering right while both magnitudes overshoot is a different situation from getting it right with both in band — see [[prediction_y_the_paired_depth_signature_appears_but_the_arrival_side_overshoots]]. Same validity caveat as Y.
 
 ### `prices_and_book_walking_do_not_introduce_quote_churn`
 

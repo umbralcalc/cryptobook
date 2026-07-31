@@ -1017,3 +1017,70 @@ eliminated, and it means a full pass would establish that *a pure-config mechani
 reproduces the measured signature*, not that the signature is a property of order flow.
 Message-level data remains the only way to settle that, and this project cannot obtain it
 from the feed it is permitted to use.
+
+### Scored, 2026-07-31
+
+**Validity precondition: the clip bound on 4.21% of level-steps**, clearing the
+pre-registered 5%, so Y and Z carry verdicts rather than being recorded inconclusive.
+Not by much, though — a thinner book would put this test's validity in question, and
+that margin is part of the result.
+
+| | prediction | measured | |
+|---|---|---|---|
+| **X** | `corr(depth, activity)` < −0.05 | **−0.307** | pass |
+| **Y** | cancels ∈ [−0.30,−0.01] **and** arrivals ∈ [−0.40,−0.05] | −0.286 ✓ / **−0.417 ✗** | **FAIL** by 0.017 |
+| **Z** | arrivals the stronger brake | 0.417 vs 0.286 | pass |
+| **AA** | `corr(arrivals, cancels)` > +0.85 | **+0.822** | **FAIL** |
+| **AB** | drift < 1.3, spread sd > 0.1 | 1.164, 0.530 | pass |
+
+`churn_rate` moved once, on mean depth alone: 1.15 → **1.05**, because the
+activity-dependent damping thinned the book to 188.9 against the 227.8–235.9 the previous
+two models produced. Sweep, no correlation computed while choosing: 0.85 → 340.3,
+0.90 → 299.1, 0.95 → 280.5, 1.00 → 259.4, 1.05 → **235.4**. `persistence` stayed at its
+pre-registered 0.8 and the innovation moments were not touched.
+
+#### The pre-registered reading applies, and it is the continuable one
+
+Y's failure lands on the row this document already contains: *"Depth responds to the
+driver, but not by the right amount in both columns. Informative and continuable: the
+response exists and its strength is a parameter question, which a fresh pre-registration
+could sweep."* That is exactly the situation — unlike the previous block, where T came out
+in a direction the table did not contain.
+
+AA's failure has its own row (*"a third mechanism trading the co-movement away"*). The
+table has no row for Y and AA failing **together**, which is recorded as a gap in it; both
+individual readings apply and they do not conflict.
+
+#### This is the closest any model in this project has come
+
+| | this model | Binance range |
+|---|---|---|
+| `corr(depth, cancels)` | −0.286 | −0.015 … −0.246 |
+| `corr(depth, arrivals)` | −0.417 | −0.121 … −0.339 |
+| `corr(arrivals, cancels)` | +0.822 | +0.940 … +0.980 |
+
+**Both flows are negative against depth, with arrivals the stronger — the first time any
+model here has produced the real ordering.** Every previous one put the whole brake on a
+single flow, or inverted the ordering. The failures are of magnitude, not direction.
+
+#### Both failures plausibly share one cause, and it is a parameter
+
+The damping's activity dependence is at full strength: `s_eff = arrival_scale · act_ref/act`,
+so `q* ∝ 1/act`. That overshoots the depth correlations. It also costs co-movement, because
+arrivals now **saturate** in activity — `arr ∝ act/(1 + q·act/(s·act_ref))`, whose
+denominator grows with `act` — while cancellation stays proportional to it, so the two
+flows track each other less closely than when both were proportional.
+
+A weaker dependence, e.g. `s_eff = arrival_scale · (act_ref/act)^γ` with γ < 1, would
+reduce both effects at once. **That is a continuation and it needs its own
+pre-registration.** Sweeping γ now, having seen which way X, Y and AA missed, is precisely
+the move this file exists to prevent. The saturation account is also an explanation
+consistent with the numbers rather than an independently tested claim.
+
+#### What this does not establish
+
+Nothing here is a calibration; no parameter was fitted to any market number, and
+`persistence`, the damping form and the innovation moments were all fixed in advance. The
+target bands carry the standing confound — both real flows are inferred from net depth
+changes — so a model landing inside them would establish that a pure-config mechanism
+reproduces the measured signature, not that the signature is a property of order flow.
