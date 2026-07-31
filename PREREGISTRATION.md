@@ -9,6 +9,19 @@ misses it, the result missed it — the record says so and the claim states the
 failure. Widening a bound after seeing the number would make every other claim in
 this repo worth less.
 
+**Labels normalised 2026-07-31, and recorded here rather than done quietly.** Three
+blocks declared their predictions under different letters than they were scored
+under: removing attrition declared F/G/H and scored D/E/F, depth-dependent arrivals
+declared I/J/L and scored G/H/I, and cross-segment replication declared P/Q/R/S and
+scored J/K/L/M. Everything else in the project — every scored table, every outcome
+table, every claim ID in `CLAIMS.md`, and the commit messages — already used one
+sequential A–M scheme, so the declaration headings were the outliers and they were
+brought into line with it. **No threshold, no measured value and no pass/fail verdict
+changed**, and the letters now run A–M with no gaps and no reuse. Letters N–S are
+deliberately left unused: they appear with older meanings in commits made before this
+edit, and leaving them empty means no letter ever carries two meanings across the
+history of this repo.
+
 ---
 
 ## Spike 1.2 — synthetic parameter recovery
@@ -239,12 +252,12 @@ Over the ~1900 scored steps that is roughly +1160 on a starting depth of 52.
 
 ### Predictions
 
-**F — the coupling falls, as it must.** `corr(depth, cancels)` < **+0.2**.
+**D — the coupling falls, as it must.** `corr(depth, cancels)` < **+0.2**.
 
 *Near-forced and declared as such.* Recorded so it cannot be presented as the
-result. If F fails, my diagnosis of the residual was simply wrong.
+result. If D fails, my diagnosis of the residual was simply wrong.
 
-**G — depth stops being stationary.** Mean depth over the second half of the scored
+**E — depth stops being stationary.** Mean depth over the second half of the scored
 window, divided by the mean over the first half, exceeds **1.5**.
 
 The arithmetic above predicts a ratio near 2.7. A conserved book gives ~1, so a model
@@ -252,7 +265,7 @@ that drifts is failing to conserve the book at all. E could fail if the
 clip or the sweep stabilise the book in a way the arithmetic misses — that is the
 part actually being tested.
 
-**H — the spread collapses to its floor.** Mean spread < **2.5 ticks** with a
+**F — the spread collapses to its floor.** Mean spread < **2.5 ticks** with a
 standard deviation < **0.5**.
 
 A book growing without bound keeps its inner levels permanently occupied, so the
@@ -341,13 +354,13 @@ looking at any correlation.
 
 ### Predictions
 
-**I — stationarity is restored.** Depth 2nd-half / 1st-half ratio < **1.3**, against
+**G — stationarity is restored.** Depth 2nd-half / 1st-half ratio < **1.3**, against
 2.72 with no stabiliser, against ~1 for a conserved book.
 
 Expected but not certain: it depends on the damping being strong enough to bite
 before the book runs away.
 
-**J — the coupling stays fixed.** `corr(depth, cancels)` stays below **+0.2**.
+**H — the coupling stays fixed.** `corr(depth, cancels)` stays below **+0.2**.
 
 **This is the real test.** Cancellations are pure churn and contain no depth term at
 all, so naively this is forced — but it is not, because depth is now *anti*-correlated
@@ -355,7 +368,7 @@ with arrivals, and arrivals and cancellations share the activity driver. That
 indirect path could reintroduce a depth/cancellation correlation of either sign.
 **I do not know which way this comes out**, which is what makes it worth running.
 
-**L — the spread stays alive.** Spread standard deviation > **0.1** ticks.
+**I — the spread stays alive.** Spread standard deviation > **0.1** ticks.
 
 The cost check, in the shape of F. A stabilised book could still pin its inner
 levels and kill the spread-response output; if it does, this variant fails on the
@@ -438,18 +451,18 @@ Nothing is tuned. No model parameter is touched by this section — it tests whe
 
 ### Predictions
 
-**P — the depth/cancellation decoupling replicates.** `corr(depth, cancellations)` is
+**J — the depth/cancellation decoupling replicates.** `corr(depth, cancellations)` is
 below **+0.2** in every one of the five segments. The model requires this strongly
-positive, and this is the reading that stopped Phase 2. **If P fails on any segment,
+positive, and this is the reading that stopped Phase 2. **If J fails on any segment,
 Phase 2's central conclusion was a property of one capture** and has to be reopened.
 
-**Q — the churn co-movement replicates.** `corr(arrivals, cancellations)` is above
+**K — the churn co-movement replicates.** `corr(arrivals, cancellations)` is above
 **+0.9** in every one of the five segments.
 
-**R — overdispersion replicates.** Variance/mean exceeds **10** for both arrival and
+**L — overdispersion replicates.** Variance/mean exceeds **10** for both arrival and
 cancellation counts in every segment, against Poisson's exactly 1.
 
-**S — co-movement weakens with liquidity.** `corr(arrivals, cancellations)` on the
+**M — co-movement weakens with liquidity.** `corr(arrivals, cancellations)` on the
 lowest-quote-volume symbol is **lower** than on BTCUSDT. Quote churn is a market-maker
 behaviour — pulling and re-posting together — so thinner participation should show less
 of it. This is the only prediction here that is not a replication check.
@@ -509,7 +522,7 @@ one-second rows each, recorded concurrently; no gaps and no suspect rows in any 
 | **L** | dispersion > 10 everywhere | 2.9e3 (BTCUSDT) | **pass** |
 | **M** | DOGEUSDT co-movement < BTCUSDT | −0.032 | **pass** |
 
-#### What P establishes, and it is the point of the exercise
+#### What J establishes, and it is the point of the exercise
 
 **Phase 2's central conclusion now rests on five instruments instead of one.** The
 depth/cancellation coupling the model requires is absent — negative, in fact — on every
@@ -520,14 +533,14 @@ It remains a replication rather than a discovery, and it was not blind: I had se
 earlier BTCUSDT segment. It also says nothing about any other asset class; this model's
 lineage is an equity one.
 
-#### Q held, and my stated reason for doubting it was wrong
+#### K held, and my stated reason for doubting it was wrong
 
 I predicted K was the one at risk, on the argument that +0.9 had only ever been measured
 on the most heavily market-made instrument in existence and that a thinner pair might read
 +0.7. The floor holds with margin everywhere — the minimum is +0.940. Quote churn's
 signature is not a large-cap phenomenon within the range tested.
 
-#### S passes its test but not its reasoning, and that distinction matters
+#### M passes its test but not its reasoning, and that distinction matters
 
 The stated comparison holds: DOGEUSDT's co-movement is below BTCUSDT's, by 0.032. **But
 the ordering is not monotonic** — the lowest of the five is SOLUSDT, third by volume — and

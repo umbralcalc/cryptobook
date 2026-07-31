@@ -27,14 +27,18 @@
 # ── WHAT IS BEING TESTED, AND WHAT IS NOT ─────────────────────────────────────
 #
 # Predictions were fixed in PREREGISTRATION.md and committed before this file
-# existed. The one that matters is J: whether the depth/cancellation coupling STAYS
+# existed. The one that matters is H: whether the depth/cancellation coupling STAYS
 # broken. Cancellations contain no depth term, so that looks forced — it is not.
 # Depth is now anti-correlated with arrivals, and arrivals share the activity driver
 # with cancellations, so that indirect path could reintroduce a coupling of either
 # sign. Which way it goes was not known when this was written.
 #
-# K (corr(depth, arrivals) turns negative) IS forced by construction, and is claimed
-# the two markets disagree exactly where this mechanism makes a prediction.
+# The OTHER side of that trade is not a pre-registered prediction and is not written
+# as one. corr(depth, arrivals) turning negative is forced by construction — damping
+# arrivals by resting depth is what produces the sign — so it is recorded as the
+# descriptive claim depth_stabilisation_moves_the_brake_onto_the_arrival_side, which
+# pins WHERE the brake sits rather than claiming a discovery. The book needs a brake,
+# and in this vocabulary every available brake couples depth to one flow or the other.
 main:
   partitions:
   - name: lob_arrivals
