@@ -708,3 +708,65 @@ reproduces the measured signature*. Whether that signature is a property of orde
 of how this project infers order flow **cannot be settled with the data this project
 has**, and would need message-level data rather than depth snapshots. That is stated now
 so a pass cannot later be presented as more than it is.
+
+### Scored, 2026-07-31
+
+| | prediction | measured | |
+|---|---|---|---|
+| **T** | `corr(depth, cancels)` in [−0.30, −0.02] | **+0.458** | **FAIL — opposite sign** |
+| **U** | arrival brake below −0.05 **and** the stronger | −0.110 vs +0.458; margin **−0.348** | **FAIL** on the ordering |
+| **V** | `corr(arrivals, cancels)` > +0.7 | **+0.436** | **FAIL** |
+| **W** | drift < 1.3, spread sd > 0.1 | 1.066, 0.579 | pass |
+
+One value moved after the predictions were committed and only one: `churn_rate`, from
+the inherited 1.15 to **0.55**, on mean depth alone. At 1.15 mean depth was 73.5 against
+the previous mechanism's 227.8, outside the range, so the single adjustment this document
+permits was used. The sweep computed **no correlation** while choosing — 0.4 → 397.8,
+0.5 → 273.3, 0.6 → 195.4, 0.7 → 146.1, 0.8 → 110.6, 0.9 → 95.0, then 0.55 → 238.6.
+`recycle` stayed at its pre-registered 0.5.
+
+#### T failed in a direction this document did not contain, and that is recorded as a fault
+
+The outcome table above has rows for T failing by **not moving** and for T failing by
+**overshooting**. It has no row for T coming out **positive**, which is what happened:
++0.458, a stronger depth coupling than the +0.37 of the minimal model this entire line of
+work began by rejecting.
+
+So the reading below was written **after** seeing the number, and is therefore weaker
+evidence than the pre-registered rows would have been. Saying so is the point of keeping
+this file: a post-hoc explanation presented in a pre-registered document's voice is worth
+less than one that admits which it is.
+
+#### The reason is an accounting identity, not a rate
+
+Cancellation was made proportional to `arr(t−1)`. But `arr(t−1)` is precisely what is
+**resting** at `t` — a book accumulates its own recent arrivals — so cancellation and
+depth were handed a shared term and a positive correlation followed by construction.
+
+**Depth-neutral in the RATE is not depth-neutral in the CORRELATION.**
+
+This kills the family rather than the instance. **Any** cancellation rule keyed to recent
+arrivals inherits the same coupling, whatever the lag or the coefficient, so there is no
+value of `recycle` that rescues it and sweeping for one would be wasted work. What it does
+not touch is rules keyed to something *other than* arrivals, which is where the mechanism
+hunt goes next and what a future pre-registration has to be about.
+
+#### V was predicted in direction and badly underestimated in size
+
+This document argued a *pure* lag would drive contemporaneous co-movement to about zero,
+and chose a half-weight mixture to avoid that. **Half was already too much**: +0.897 fell
+to +0.436, well under the +0.7 floor. The reasoning was right about the mechanism and
+wrong about the magnitude — the cost of lagging scales faster than its weight.
+
+That reasoning was also incomplete in a way worth naming. It examined what lagging
+**costs** and never asked what keying cancellation to arrivals **buys**, which is the
+question T answered badly. Predicting one side of a trade-off is not predicting the trade.
+
+#### What this does not establish
+
+The target band came from Binance segments whose arrival and cancellation counts are both
+**inferred from net depth changes**, so — as declared before running — it may be an
+artefact of that one inference path. A failure against a possibly-artefactual target is
+still a real failure of *this* mechanism, because T's +0.458 is nowhere near the band on
+any reading. But it means the hunt is chasing a target that has not itself been verified,
+and message-level data remains the only way to settle that.

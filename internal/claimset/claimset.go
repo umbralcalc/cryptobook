@@ -37,6 +37,7 @@ import (
 	"github.com/umbralcalc/cryptobook/pkg/lob"
 	"github.com/umbralcalc/cryptobook/pkg/priced"
 	"github.com/umbralcalc/cryptobook/pkg/recovery"
+	"github.com/umbralcalc/cryptobook/pkg/recycled"
 	"github.com/umbralcalc/cryptobook/pkg/stability"
 	"github.com/umbralcalc/cryptobook/pkg/windowing"
 )
@@ -48,6 +49,7 @@ var providers = []func() []claims.Claim{
 	baseline.ObservedBehaviour,  // Spike 2.2: the synthetic control for the real-market diagnostics
 	churn.ObservedBehaviour,     // Spike 2.2: the churn model's pre-registered predictions, scored
 	arrivals.ObservedBehaviour,  // Spike 2.2: depth-dependent arrivals — the mechanism that holds
+	recycled.ObservedBehaviour,  // Spike 2.2: depth-neutral churn — the mechanism that does not
 	recovery.ObservedBehaviour,  // Spike 1.2: identification, ESS, recovery
 	windowing.ObservedBehaviour, // Gate 3.4: how calibration degrades with window length
 	stability.ObservedBehaviour, // Spike 4.2: the one output the minimal model supports

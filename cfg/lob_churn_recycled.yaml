@@ -1,0 +1,213 @@
+# DEPTH-NEUTRAL CHURN — cancellations that recycle what was just posted.
+#
+# Predictions T, U, V and W were fixed in PREREGISTRATION.md and committed before this
+# file existed (480992d). Nothing here was adjusted against any of them.
+#
+# ── THE QUESTION ──────────────────────────────────────────────────────────────
+#
+# Every model this project has built puts its whole depth-stabilising brake on ONE
+# flow. cfg/lob_arrivals.yaml reads corr(depth, arrivals) -0.116 against corr(depth,
+# cancels) -0.002; the attrition variants put +0.6 on cancellations with the wrong
+# sign. On every Binance segment recorded, BOTH flows are mildly anti-correlated with
+# depth, arrivals the stronger of the two.
+#
+# So: can a model produce two comparable mild anti-correlations with depth WITHOUT
+# losing the contemporaneous co-movement, which is the strongest signature the
+# previous model already reproduces?
+#
+# ── THE MECHANISM ─────────────────────────────────────────────────────────────
+#
+# The arrival side is UNCHANGED — same damping, same decay, same parameters — so the
+# brake it carries is untouched and U's first half is forced. Cancellation gains a
+# recycled term alongside the existing same-step churn:
+#
+#   can_i(t) = min( q_i , recycle * arr_i(t-1) + Poisson(churn_rate * decay_i * activity * dt) )
+#
+# The recycled term is DEPTH-NEUTRAL by construction: it depends on what was posted at
+# that level last step, not on what is resting there now. That is the new part.
+#
+# The route to T is INDIRECT, and that is why T is uncertain rather than forced. The
+# recycled term carries no depth term at all — but last step's arrivals were themselves
+# damped by last step's depth, and depth is autocorrelated, so an anti-correlation can
+# reach the cancellation flow through q(t-1) without any depth term ever being written
+# into it. Which way that comes out was not known when this file was written.
+#
+# ── THE RESULT: IT CAME OUT POSITIVE, AND THE MODEL IS KEPT ANYWAY ────────────
+#
+# T, U and V all FAILED; only W passed. corr(depth, cancels) came out at +0.458 — the
+# OPPOSITE SIGN, and a stronger coupling than the +0.37 of the minimal model this line
+# of work began by rejecting.
+#
+# The reason is an accounting identity, not a rate. arr(t-1) is precisely what is
+# RESTING at t, so keying cancellation to it hands cancellation and depth a shared
+# term. DEPTH-NEUTRAL IN THE RATE IS NOT DEPTH-NEUTRAL IN THE CORRELATION. No value of
+# recycle rescues that, because the identity does not depend on the coefficient.
+#
+# This file is kept, unmodified, as the thing the failing claims are measured against —
+# deleting it would leave four claims with nothing to enforce them. It is NOT a model
+# to build on. See DECISIONS.md and PREREGISTRATION.md's "Scored, 2026-07-31".
+#
+# ── WHY NOT A PURE LAG ────────────────────────────────────────────────────────
+#
+# DECISIONS.md pointed at "cancellations replacing what was just posted", a lagged
+# coupling. Taken literally — can(t) = f * arr(t-1) and nothing else — that was
+# predicted to FAIL before it was built, and the reasoning is in PREREGISTRATION.md so
+# this mixture cannot be mistaken for a retreat after seeing a result: contemporaneous
+# corr(arrivals, cancels) would become corr(arr(t), arr(t-1)), which is about zero
+# because the activity driver is an iid gamma draw per step with no persistence. That
+# would trade this model's best-matched signature for the weaker one being chased.
+#
+# So the same-step churn term is RETAINED unchanged, to keep contemporaneous
+# co-movement a source. Prediction V is the cost check on exactly this.
+#
+# ── WHAT lag() FORCED ON THE LAYOUT ───────────────────────────────────────────
+#
+# lag(name, n) reads a partition's COMMITTED STATE n rows back — a bare field name or
+# an upstreams alias only ever gives row 0, so it cannot see an intermediate binding
+# from the same step. Per-level arrivals therefore have to be promoted into the state
+# row, which is why posted_bid and posted_ask exist and why the row is 37 wide rather
+# than 21. They are APPENDED, so indices 0-20 stay identical to cfg/lob_arrivals.yaml
+# and the two models remain directly comparable.
+#
+# state_history_depth is 2 for the same reason: lag(x, 1) needs the row to still be
+# there. At the first step the lagged row is the zero-filled init state, so nothing is
+# recycled until step 2 — the scored window starts well past that.
+main:
+  partitions:
+  - name: lob_recycled
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      # NO ATTRITION. Cancellation is pure churn; a depth-proportional term here is
+      # exactly what this variant exists to avoid. Kept as a named zero rather than
+      # deleted, so the absence is visible and a stray reintroduction is obvious.
+      cancel_rate: [0.0]
+      # The queue depth at which posting into a level halves.
+      #
+      # INHERITED UNCHANGED from cfg/lob_arrivals.yaml, and that is the point: the
+      # arrival side must be identical for U's ordering to mean anything. Still an
+      # arbitrary value there and here — not fitted to market data, and it must not be
+      # described as such.
+      arrival_scale: [19.0]
+      # The fraction of last step's posting at a level that is pulled this step.
+      #
+      # PRE-REGISTERED at 0.5 — the midpoint between "no recycling" (which is
+      # cfg/lob_arrivals.yaml) and "all churn is recycled posting". Chosen as a
+      # midpoint BEFORE any run and not fitted to any correlation. Moving it after
+      # seeing T would need its own pre-registration, not an edit here.
+      recycle: [0.5]
+      # RE-SET ONCE, ON MEAN DEPTH ALONE — 1.15 in cfg/lob_arrivals.yaml, 0.55 here.
+      #
+      # Adding a recycled term on top of the existing churn raises total cancellation,
+      # and at the inherited 1.15 mean depth fell to 73.5 against the 227.8 the
+      # previous mechanism produced — outside the range, so the one adjustment
+      # PREREGISTRATION.md permits was used. The sweep was on DEPTH ONLY and no
+      # correlation was computed while choosing: 0.4 -> 397.8, 0.5 -> 273.3,
+      # 0.6 -> 195.4, 0.7 -> 146.1, 0.8 -> 110.6, 0.9 -> 95.0, then 0.55 -> 238.6.
+      #
+      # 0.55 is the coarse-grid value nearest the target, not a ground-down fit; 0.56
+      # gives 218.4 and would have served equally. Nothing was adjusted against T, U,
+      # V or W, and this is the ONLY value that moved.
+      churn_rate: [0.55]
+      activity_shape: [2.0]
+      activity_rate: [0.5]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2,
+       0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0]
+    state_history_depth: 2
+    seed: 20260731
+  expressions:
+  - partition: lob_recycled
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    # Promoted into the state row ONLY so lag() can reach them; nothing reads them at
+    # row 0. See the header on why lag() cannot see an intermediate binding.
+    - {name: posted_bid, width: 8}
+    - {name: posted_ask, width: 8}
+    bindings:
+    # THE SHARED DRIVER. One draw per step, applied to both streams — this is the
+    # entire coupling. shared() because a bare gamma of two scalars would have an
+    # ambiguous width, and because the whole point is that one value reaches both.
+    #
+    # CAREFUL: the engine's gamma(alpha, beta) is (shape, RATE) — verified against
+    # pkg/rng, where gamma(2, 0.5) has mean 4.0, not 1.0. So mean = shape/rate and
+    # variance = shape/rate². These values give MEAN ACTIVITY 4, not 1. An earlier
+    # comment in cfg/lob_churn.yaml claimed the second argument was a scale giving
+    # mean 1; that was wrong. It changes no fitted result — the parameters were
+    # fitted with this activity in place — but to vary burstiness at fixed mean
+    # activity, shape and rate must move TOGETHER (rate = shape gives mean 1).
+    - {name: activity, expr: "shared(gamma(activity_shape, activity_rate))"}
+
+    # THE STABILISER. slice(bid, i, 1) reads THIS level's resting volume inside the
+    # lane, so the damping is per level rather than driven by total depth.
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(bid, i, 1) / arrival_scale)))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(ask, i, 1) / arrival_scale)))"}
+
+    # Churn is distributed across levels the same way arrivals are, because it is
+    # the same quotes being pulled that were posted. Attrition stays proportional to
+    # what is resting. min(...) clips: volume cannot go negative.
+    - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: churn_ask, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    # THE RECYCLED TERM. lag(posted_bid, 1) is last step's per-level arrivals, read
+    # back out of the committed state row. Depth-neutral: what was posted, not what is
+    # resting. cancel_rate is still zero and the attrition term is kept as a named zero
+    # so a stray reintroduction stays obvious — it contributes nothing.
+    - {name: recycled_bid, expr: "recycle * lag(posted_bid, 1)"}
+    - {name: recycled_ask, expr: "recycle * lag(posted_ask, 1)"}
+    - {name: can_bid, expr: "min(bid, churn_bid + recycled_bid + poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, churn_ask + recycled_ask + poisson(cancel_rate * ask * dt))"}
+
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+    - "arr_bid"
+    - "arr_ask"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

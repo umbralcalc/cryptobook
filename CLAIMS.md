@@ -258,6 +258,46 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** mean and standard deviation of the spread in ticks, over two-sided steps — mean spread 2.17 · spread sd 0.41 (asserts spread sd > 0.1 (pre-registered))
 - **Does not support:** It shows the output still exists, not that its distribution resembles a real book's — no spread distribution has been compared against market data at any point in this project.
 
+### `prediction_t_recycling_reintroduces_the_depth_coupling_through_the_book_identity`
+
+> Prediction T, FAILED, and failed in the direction the outcome table did not contain. The pre-registered band was [-0.30, -0.02] and the measured correlation is +0.458 — not a weak version of the target but the OPPOSITE SIGN, and stronger than the +0.37 the minimal model had. The reason is an accounting identity rather than a rate: cancellation was made proportional to arr(t-1), and arr(t-1) is what is resting at t, so cancellation and depth were given a shared term. DEPTH-NEUTRAL IN THE RATE IS NOT DEPTH-NEUTRAL IN THE CORRELATION, because a book is an accumulator of its own recent arrivals.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — depth-neutral-churn generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestDepthNeutralChurn/prediction_t_recycling_reintroduces_the_depth_coupling_through_the_book_identity`](pkg/recycled/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and cancellation flow — depth vs cancellations 0.46 (asserts depth vs cancellations > +0.2 (the pre-registered band it had to fall far below))
+- **Does not support:** This is pinned as a FLOOR so a future change that quietly fixed it would break the claim rather than pass. It generalises further than one config and that is the point: any cancellation rule keyed to RECENT ARRIVALS inherits a positive depth coupling by the same identity, whatever the lag or the coefficient. It says nothing about rules keyed to something other than arrivals, which is where the mechanism hunt now has to go.
+
+### `prediction_u_the_brake_ordering_inverts_when_cancellation_tracks_recent_arrivals`
+
+> Prediction U, FAILED on the half that was actually being tested. Its forced half held — the inherited arrival damping still reads -0.110 — but the ORDERING inverted: the cancellation side now carries +0.458, four times the arrival side's magnitude and with the wrong sign, so the margin is -0.348 where U required it positive. Every Binance segment has arrivals as the stronger brake; this model now has cancellation as the stronger ANTI-brake, which is further from the market than the model it was built to improve on.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — depth-neutral-churn generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestDepthNeutralChurn/prediction_u_the_brake_ordering_inverts_when_cancellation_tracks_recent_arrivals`](pkg/recycled/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and each flow; and the margin by which the arrival correlation is the more negative — depth vs arrivals -0.11 · depth vs cancellations 0.46 · margin -0.35 (asserts depth vs arrivals < -0.05 (pre-registered, and the forced half), margin < 0 (U required this POSITIVE; it is not))
+- **Does not support:** The forced half passing establishes only that the arrival side was inherited intact, which the config test asserts directly and more cheaply. The failure is the informative part, and it is a restatement of [[prediction_t_recycling_reintroduces_the_depth_coupling_through_the_book_identity]] rather than independent evidence — the same shared term produces both.
+
+### `prediction_v_recycled_churn_halves_the_contemporaneous_co_movement`
+
+> Prediction V, FAILED, and it is the failure that was reasoned out in advance — just not far enough. PREREGISTRATION.md argued a PURE lag would drive contemporaneous co-movement to about zero, because the activity driver is iid per step, and chose a half-weight mixture to avoid that. Half was already too much: +0.897 fell to +0.436, well under the +0.7 floor. So the cost of lagging scales faster than its weight, and the model sold its best-matched signature (real: +0.98) to buy a depth signature it did not get.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — depth-neutral-churn generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestDepthNeutralChurn/prediction_v_recycled_churn_halves_the_contemporaneous_co_movement`](pkg/recycled/behaviour_test.go)
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations 0.44 (asserts arrivals vs cancellations < +0.7 (the pre-registered floor it had to clear))
+- **Does not support:** Pinned as a CEILING so a future fix breaks it loudly. One mixture weight at one parameterisation — it establishes that 0.5 is too much, not where the boundary lies, and the shape of the trade-off between recycling weight and co-movement is unmeasured. Finding that boundary by sweeping the weight would need its own pre-registration, and per T it would be sweeping toward a mechanism that fails anyway.
+
+### `prediction_w_the_book_survives_recycled_churn`
+
+> Prediction W, PASSED, and it is the only one that did. The book stays conserved at a drift of 1.066 and the spread keeps a live distribution at 0.579 ticks of standard deviation. Recycling removes cancellation volume that no longer scales with what is resting, leaving the arrival-side brake to hold the book alone, and it holds — so this mechanism fails on correlations rather than on survival, unlike the attrition-free variant which failed on both.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — depth-neutral-churn generator at an arbitrary parameterisation. Model-internal only: no real-market comparison is made here
+- **Enforced by:** [`TestDepthNeutralChurn/prediction_w_the_book_survives_recycled_churn`](pkg/recycled/behaviour_test.go)
+- **Observed:** mean resting depth over the second half of the scored window divided by the first half (a conserved book gives ~1); spread sd in ticks over two-sided steps; and mean depth in lots — second half / first half 1.07 · spread sd 0.58 · mean depth 238.56 (asserts second half / first half < 1.3 (pre-registered), spread sd > 0.1 (pre-registered))
+- **Does not support:** Mean depth is NOT a result — churn_rate was re-set to 0.55 on exactly this quantity, the one adjustment the pre-registration permits, so it is reported as provenance rather than as a finding. A passing cost check on a mechanism whose three substantive predictions failed is not a partial success: it says the failure is clean, not that anything works.
+
 ### `prices_and_book_walking_do_not_introduce_quote_churn`
 
 > Adding prices, an emergent spread and marketable orders that walk the book leaves arrivals and cancellations essentially uncorrelated, exactly as in the minimal model — because both draw them as independent streams. Binance BTCUSDT reads about +0.98. So the domain-model step that unlocked the stability outputs did NOT supply the mechanism Spike 2.2 found missing, and coupled arrival/cancellation remains the only candidate standing.

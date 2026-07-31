@@ -1189,6 +1189,75 @@ over from a run at a different `churn_rate` than the one in use, which would hav
 model in a three-times-thinner regime. Checking the number rather than reusing a
 remembered one caught it.
 
+## Depth-neutral churn: the last candidate fails, and it fails by identity
+
+Predictions T–W were committed in `480992d` before `cfg/lob_churn_recycled.yaml`
+existed. Three of four failed.
+
+| | prediction | measured | |
+|---|---|---|---|
+| T | `corr(depth, cancels)` in [−0.30, −0.02] | **+0.458** | **FAIL — opposite sign** |
+| U | arrival brake < −0.05 and the stronger | −0.110 vs +0.458 | **FAIL** on ordering |
+| V | `corr(arrivals, cancels)` > +0.7 | **+0.436** | **FAIL** |
+| W | drift < 1.3, spread sd > 0.1 | 1.066, 0.579 | pass |
+
+### The finding
+
+Cancellation was made proportional to `arr(t−1)`, which carries no depth term anywhere.
+It nevertheless produced the **strongest depth coupling any model here has had** — +0.458
+against the minimal model's +0.37, the very failure this whole line of work started from.
+
+The reason is an accounting identity rather than a rate. `arr(t−1)` is what is **resting**
+at `t`: a book accumulates its own recent arrivals. Keying cancellation to recent arrivals
+therefore hands cancellation and depth a shared term, and the positive correlation is
+forced by construction rather than by any modelling choice.
+
+**Depth-neutral in the rate is not depth-neutral in the correlation.**
+
+That eliminates a family, not an instance. No value of `recycle` rescues it — the identity
+does not depend on the coefficient or the lag — so sweeping the parameter would be work
+with a known answer. Quote churn was the last candidate standing after prices and
+attrition were ruled out; the *lagged* form of it is now ruled out too, and by a mechanism
+general enough to rule out the un-lagged form of the same keying.
+
+### What is left, stated narrowly
+
+What survives untouched is cancellation rules keyed to something **other than arrivals**.
+The identity bites only because arrivals are a component of depth. A rule keyed to elapsed
+time-in-queue, to the touch's own movement, or to a latent driver that is not itself
+accumulated into the book would not inherit it. None of those has been tried, none is
+implied by the evidence, and each would need its own pre-registration.
+
+### The half-prediction that was right, and the half that was not asked
+
+PREREGISTRATION.md argued a pure lag would collapse the contemporaneous co-movement and
+chose a half-weight mixture to avoid it. Right about the mechanism, wrong about the size:
++0.897 fell to +0.436 at half weight, far below the +0.7 floor. The cost of lagging scales
+faster than its weight.
+
+More usefully, that reasoning was incomplete rather than merely imprecise. It examined
+what lagging **costs** and never asked what keying cancellation to arrivals **buys** —
+which is exactly what T answered, badly. Predicting one side of a trade-off is not
+predicting the trade, and this is the clearest instance of that in the project so far.
+
+### Provenance of the one adjusted parameter
+
+`churn_rate` moved from the inherited 1.15 to **0.55**, once, on mean depth alone: at 1.15
+depth fell to 73.5 against the previous mechanism's 227.8. The sweep computed no
+correlation while choosing — 0.4 → 397.8, 0.5 → 273.3, 0.6 → 195.4, 0.7 → 146.1,
+0.8 → 110.6, 0.9 → 95.0, then 0.55 → 238.6 — and `recycle` stayed at its pre-registered
+0.5. Mean depth is therefore provenance in the W claim, not a result.
+
+### What this does not establish
+
+The target band was taken from Binance segments whose arrival and cancellation counts are
+both inferred from net depth changes, and that confound was declared before running. It
+does not rescue the mechanism — +0.458 is nowhere near the band on any reading — but it
+does mean the search is aimed at a target that has not itself been verified. Settling that
+needs message-level data, which this project does not have and cannot obtain from the
+depth-snapshot feed it is allowed to use.
+
+
 ## Gate 3.4 — Invariant A boundary (OPEN, evidence gathered)
 
 **No branch is selected here. PLAN.md reserves this gate for the maintainer and
