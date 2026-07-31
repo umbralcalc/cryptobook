@@ -839,3 +839,166 @@ paragraph above implies, so the eliminations measured against it are worth more 
 than less. It does not rescue this mechanism, and it does not touch the finding that
 survives regardless — depth-neutral in the rate is not depth-neutral in the correlation is
 an identity, proved by construction, and holds whatever the market turns out to do.
+
+---
+
+## Persistent driver with activity-dependent damping — predictions fixed before `cfg/lob_persistent.yaml` exists
+
+**Fixed 2026-07-31, committed before the config is written.** This block also closes out
+the re-test that [DECISIONS.md](DECISIONS.md) has been carrying since 2026-07-29 — "re-testing
+in a lighter regime needs a fresh pre-registration" — by making that regime a stated
+precondition rather than an assumption. See "Validity precondition" below.
+
+### The question this has to answer
+
+Four mechanisms have now been eliminated: prices, attrition removal, common-factor churn,
+and recycled churn. The best surviving model (`cfg/lob_arrivals.yaml`) reads
+`corr(depth, arrivals)` −0.116, `corr(depth, cancels)` −0.002, `corr(arrivals, cancels)`
++0.897, against a real signature where **both** flows sit mildly negative against depth,
+arrivals the stronger, with co-movement +0.94 to +0.98.
+
+So: **can one latent driver put both flows mildly negative against depth, in the right
+order, without losing the co-movement?**
+
+### Why every previous model read ≈0 on the cancellation side — a structural reason, not a missing term
+
+This is the insight the block turns on, and it was not available before today.
+
+Depth is a slow accumulator. The activity driver is drawn **iid per step**. A white-noise
+driver therefore cannot move depth within the step it acts on, so the contemporaneous
+correlation between depth and anything driven by activity is ≈0 **whatever the sign of the
+underlying mechanism**. The previous models were not merely missing a depth-cancellation
+term — the measurement could not have shown one.
+
+Persistence is what makes the depth response observable at all: a sustained activity regime
+gives depth many steps to move in one direction.
+
+### The homogeneity trap, stated because it rules out the obvious design
+
+The natural first design is "one driver scaling every flow". That **cannot work**, and the
+reason is worth recording so it is not attempted later.
+
+If arrivals, cancellations and marketable flow all scale with `act`, the system is
+homogeneous in `act`: it cancels out of the equilibrium condition entirely. Setting
+`limit_rate·act/(1 + q/s) = churn_rate·act` gives `q* = s·(limit_rate/churn_rate − 1)`,
+with **no activity term**. Activity would rescale time — changing how fast depth relaxes —
+without changing where it relaxes to. That is a variance effect, not a mean effect, and
+`corr(depth, activity)` stays ≈0.
+
+**Something has to break the homogeneity.** This block breaks it on the arrival damping.
+
+### The mechanism, stated before measuring
+
+Two changes to `cfg/lob_arrivals.yaml`, and nothing else:
+
+1. **The driver becomes persistent.** `act(t) = φ·act(t−1) + (1−φ)·innovation`, with φ =
+   **0.8**, chosen a priori to give a correlation time of ~5 steps — comparable to the
+   6–23 step depth relaxation the stability claims measure, so the driver is slow enough
+   for depth to follow and fast enough to vary within the window. The innovation's shape
+   and rate are set so the **stationary marginal mean and variance match the incumbent's**
+   (mean 4, variance 8), which requires scaling the innovation variance by
+   (1+φ)/(1−φ) = 9. So the driver's marginal distribution is held FIXED and only its
+   autocorrelation changes — any effect is attributable to persistence rather than to a
+   busier or burstier market.
+
+2. **The arrival damping scale becomes activity-dependent:** `s_eff = arrival_scale ·
+   act_ref / act`, where `act_ref` is the stationary mean, so at average activity it
+   reduces exactly to the incumbent. Economically: a maker is less willing to sit in a
+   long queue when the market is moving. This makes `q* ∝ 1/act` and is what breaks the
+   homogeneity above.
+
+**Marketable flow is deliberately left unscaled**, which is the pre-existing
+inconsistency — quoting scales with activity, trading does not. It is left alone because
+changing it would be a third simultaneous change, and because it produces a **competing
+effect** that makes X genuinely uncertain: see below.
+
+### The competing effect, declared in advance
+
+Marketable consumption is constant while quoting scales with activity. During a **low**
+activity run the restoring force weakens while consumption continues, dragging depth down
+— which pushes `corr(depth, activity)` **positive**, opposing change 2.
+
+**Which effect dominates is not known, and I am not confident of the sign of X.** Writing
+both down now is the point: whichever way it comes out, the reading was fixed in advance,
+and neither direction can be presented afterwards as the one expected.
+
+### Validity precondition — the fault from the churn block, made mechanical
+
+Prediction B's failure was recorded as **inconclusive about the mechanism** because the
+stated parameter criterion did not pin the regime: churn was a large fraction of the
+resting book each step, so the `min(q, ...)` clip bound often and mechanically tied
+cancellations to depth. That fault is not repeated by assertion here — it is measured.
+
+**The clip-binding rate must be reported, and must be below 5% of level-steps.** If it
+exceeds 5%, Y and Z are recorded as **inconclusive** — not as passes and not as failures —
+and the model is separately recorded as unable to reach the regime the mechanism describes,
+which is itself a finding about its usable range rather than a free pass.
+
+### Parameters
+
+Chosen a priori and stated now: **φ = 0.8**, the innovation moment-matching, and
+`act_ref` = the stationary mean. `churn_rate` may be re-set **once** on mean depth alone,
+as in the previous two blocks, with the sweep recorded and no correlation computed while
+choosing. Nothing is adjusted against X, Y, Z, AA or AB.
+
+### Predictions
+
+Labelled X–AB, continuing from W. (N–S remain skipped, per the note at the top of this
+file.)
+
+**X — depth responds to the driver at all, and negatively.** `corr(depth, activity)` <
+**−0.05**.
+
+The intermediate that everything else runs through, and reported as an observation on
+every claim below so a failure can be localised. Genuinely uncertain per the competing
+effect above. If X fails positive, change 2 was outweighed by the constant-consumption
+drag; if X lands ≈0, persistence did not carry the response and the homogeneity argument
+was incomplete.
+
+**Y — both flows land mildly negative against depth.** `corr(depth, cancels)` in
+**[−0.30, −0.01]** AND `corr(depth, arrivals)` in **[−0.40, −0.05]**.
+
+The joint landing is the test. Either alone is easy; the six real segments occupy both
+bands simultaneously and no model here has.
+
+**Z — the ordering matches.** `|corr(depth, arrivals)| > |corr(depth, cancels)|`.
+
+Arrivals carry an extra negative path — they are damped by depth directly, while
+cancellation reaches depth only through the driver — so this is *expected* rather than
+uncertain, and is declared as the weaker of the predictions. It holds on all six real
+segments, which is why it is scored at all.
+
+**AA — the co-movement survives.** `corr(arrivals, cancels)` > **+0.85**.
+
+The cost check that V failed. The floor is set **below** the incumbent's +0.897 on
+purpose: this tests that the mechanism did not break the co-movement, not that it beat the
+incumbent by a nose, and a nose-width improvement is not what is being examined. Both
+flows stay contemporaneously on one driver here, so unlike V there is no lag to pay for.
+
+**AB — the book survives.** Depth 2nd-half / 1st-half ratio **< 1.3**, and spread standard
+deviation **> 0.1** ticks.
+
+The same survival check every mechanism has had to pass. A driver-dependent equilibrium
+means depth is now chasing a moving target, so conservation is less obvious than it looks.
+
+### What each outcome means
+
+| X | Y | Z | AA | AB | reading |
+|---|---|---|---|---|---|
+| pass | **pass** | pass | pass | pass | The first model in this project to reproduce the paired depth signature *and* the co-movement together. It would make the correlation structure jointly reproducible for the first time, and calibration against real data becomes worth attempting — subject to the standing confound below. |
+| pass | **fail** | — | — | — | Depth responds to the driver, but not by the right amount in both columns. Informative and continuable: the response exists and its strength is a parameter question, which a fresh pre-registration could sweep. |
+| **fail (positive)** | — | — | — | — | The constant-consumption drag dominates activity-dependent damping. That points at the *marketable* flow rather than the quoting flows as the thing to change next, which no evidence has previously pointed to. |
+| **fail (≈0)** | — | — | — | — | Persistence did not make the depth response observable, so the structural argument above is wrong or incomplete. That would be the most surprising outcome and would need diagnosing before any further mechanism is tried. |
+| pass | pass | pass | **fail** | — | A third mechanism trading the co-movement away. Recorded as a failure, not a partial success. |
+| pass | pass | pass | pass | **fail** | Correlations match and the book does not survive — the axis that killed the attrition-free variant. |
+| — | *inconclusive* | *inconclusive* | — | — | Clip bound on >5% of level-steps. The regime was not reached; Y and Z carry no verdict, and that is recorded as a limit on the mechanism's usable range. |
+
+### The standing confound, unchanged
+
+The target bands come from Binance segments whose arrival and cancellation counts are both
+inferred from net depth changes rather than observed as messages. That confound is narrower
+than it was first stated — see the correction dated 2026-07-31 above — but it is not
+eliminated, and it means a full pass would establish that *a pure-config mechanism
+reproduces the measured signature*, not that the signature is a property of order flow.
+Message-level data remains the only way to settle that, and this project cannot obtain it
+from the feed it is permitted to use.
