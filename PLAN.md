@@ -164,6 +164,27 @@ A continuously-running streaming calibration is inference-as-forward-simulation 
 
 **Agent instruction:** Halt at this gate and escalate. Do not select a branch.
 
+> **RESOLVED 2026-07-31 — branch 1, inference stays downstream. Selected by the
+> maintainer.** The agent halted here as instructed, gathered evidence, and presented
+> the branches priced; the choice was the maintainer's. Full reasoning and the evidence
+> it was made against are in [DECISIONS.md](DECISIONS.md) under "Gate 3.4".
+>
+> Two corrections to this gate's framing, both established while gathering that
+> evidence and both worth reading before trusting the text above. **The gate's headline
+> question was already answered upstream:** stochadex has since restated Invariant A for
+> the config surface — inference-as-forward-simulation is *in scope for the engine*,
+> while the dataset, the calibration loop and the decision layer stay downstream. And
+> **branch 2's cost is misidentified above:** admitting streaming would not mean
+> admitting inference (settled, in scope) but admitting *growing storage*, which breaks
+> the analysis tier's assumption that a `StateTimeStorage` is complete before macros
+> consume it.
+>
+> Three of this phase's premises also do not hold against v0.13.1 — there is no
+> streaming source stanza, no data-agreement layer, and the Postgres schema is fixed by
+> the engine rather than negotiated. Phase 3's shape is consequently: collector →
+> Postgres → existing source → windowed calibration, with the source contributed
+> downstream via `RegisterDataSource` and **no engine change**.
+
 ---
 
 ## Phase 4 — Arrow egress and stability outputs
@@ -235,7 +256,7 @@ The uninteresting version demonstrates that stochadex runs as a job under an orc
 | 3.1 | Gap handling semantics | Agent |
 | 3.2 | Data-agreement extension needs | Agent → feeds SKILL.md edit |
 | 3.3 | Deterministic race testing | Agent |
-| **3.4** | **Invariant A boundary** | **Maintainer — agent halts** |
+| **3.4** | **Invariant A boundary** | **Maintainer — RESOLVED 2026-07-31, branch 1: inference stays downstream** |
 | 4.1 | Arrow placement vs. Invariant B | Agent |
 | 4.2 | Which stability outputs are supportable | Agent |
 | 5.1 | ONNX viability across the ecosystem | Agent |

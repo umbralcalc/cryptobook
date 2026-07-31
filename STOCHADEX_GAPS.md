@@ -63,6 +63,14 @@ keeps termination (still bounded, still no recursion, still no assignment beyond
 threaded accumulator) and would make allocation, running maxima and true prefix
 operations sayable in O(n).
 
+**Where it belongs, settled 2026-07-31.** This entry used to pose its own resolution as
+an open Invariant A question — bespoke Go downstream, or a primitive in the engine. Gate
+3.4 answered it: the engine owns forward simulation and inference-as-forward-simulation,
+downstream owns the dataset, the calibration loop and the decision layer. A `scan`
+primitive is squarely about **the expressiveness of forward simulation**, so it is engine
+work, and closing it downstream in Go would put domain code where the boundary says the
+engine belongs. **This is the highest-value candidate for upstream release.**
+
 ---
 
 ## 2. `slice` rejects a zero width, which the natural prefix-sum spelling needs
@@ -107,6 +115,13 @@ evidence measured that path at ~1100 rows per compute-second, which is ample. Th
 gap is only real if genuinely *continuous* calibration is wanted, and that would
 mean changing the analysis tier's core assumption that storage is complete before
 anything consumes it — a much deeper change than adding a source type.
+
+**Settled 2026-07-31: do not close this.** Gate 3.4 selected branch 1 — inference stays
+downstream — so the blocking-source path above *is* the chosen architecture rather than a
+workaround for a missing feature. Continuous calibration is out of scope, and the
+windowing evidence argues it should stay out: ESS halves as the window doubles, so
+growing storage would buy the long-window regime that degrades calibration. Kept here as
+a recorded non-gap, so a future reader does not close it thinking it was an oversight.
 
 ---
 

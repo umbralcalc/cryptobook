@@ -1290,12 +1290,17 @@ depth-neutral in the correlation** is an identity, forced by construction, and w
 if every market number in this project were withdrawn tomorrow.
 
 
-## Gate 3.4 — Invariant A boundary (OPEN, evidence gathered)
+## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
-**No branch is selected here. PLAN.md reserves this gate for the maintainer and
-instructs the agent to halt, and this section halts.** What follows is the evidence
-assembled to make the choice with, including three plan premises that turn out not
-to hold.
+**Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
+the maintainer and instructs the agent to halt; the agent halted, assembled the
+evidence below, and the maintainer chose. The evidence is left exactly as it was
+gathered, before the choice, and the resolution is recorded at the end of this section
+rather than woven through it — so a reader can check that the reasoning was not
+written backwards from the answer.
+
+What follows is that evidence, including three plan premises that turn out not to
+hold.
 
 ### Three Phase 3 premises that do not hold
 
@@ -1435,6 +1440,58 @@ Two consequences, both pinned as claims in [pkg/windowing](pkg/windowing/behavio
   probably does not bind — but it has not been checked.
 - **Real feed behaviour.** Everything above is synthetic flow. Arrival rates,
   burstiness and gap frequency on a real exchange feed are unknown here.
+
+### RESOLVED 2026-07-31 — Branch 1, inference stays downstream
+
+**Selected by the maintainer.** The agent presented the three branches priced against
+the evidence above and recommended this one; the choice is the maintainer's and is
+recorded as theirs.
+
+**What it ratifies rather than decides.** The engine had already restated the boundary
+for the config surface — inference-as-forward-simulation is in scope for the engine,
+while the dataset, the calibration loop and the decision layer stay downstream. A
+streaming ingress owns a live dataset and a collection loop, so it is downstream *under
+the existing invariant*. This branch states that conclusion rather than inventing one.
+
+**Why not branch 2.** Its real cost is not the one PLAN.md names. Inference-in-the-engine
+is settled and in scope; what branch 2 actually buys is **growing-storage in the engine**,
+which breaks the analysis tier's assumption that a `StateTimeStorage` is complete before
+macros consume it. That is a deep change to a core assumption, and the windowing evidence
+says it would purchase the wrong regime: ESS halves as the window doubles and posterior
+overconfidence tracks it, so growing storage buys exactly the long-window behaviour that
+degrades calibration. It would also pull exchange-specific sequence semantics into the
+engine, per the gap-semantics item above.
+
+**Why not branch 3.** Deferring is nearly free mechanically — branches 1 and 3 converge on
+identical machinery. But it leaves the *principle* unstated, and
+[STOCHADEX_GAPS.md](STOCHADEX_GAPS.md) entry 1 cannot be resolved without it: that entry
+frames its own options as "bespoke Go — breaking the pure-config property every model here
+holds, which is an Invariant A decision — or a `scan` primitive in the engine". A deferred
+gate means that question reopens this one.
+
+### What this decision now settles downstream
+
+1. **Streaming ingress is a downstream-contributed data source**, built on
+   `RegisterDataSource`'s existing contract — `build(fields) (*StateTimeStorage, error)`,
+   blocking on the feed and returning once a window is full. **No engine change**, the
+   same shape `arrow` and `s3` already use to keep their dependency trees out of the
+   engine's `go.mod`.
+2. **Phase 3 is unblocked** and its shape is fixed: collector → Postgres → existing
+   source → windowed calibration, which
+   [cfg/lob_calibrate_from_log.yaml](cfg/lob_calibrate_from_log.yaml) already
+   demonstrates end to end against a recorded segment.
+3. **Gap detection and the websocket client are downstream**, where domain-specific Go
+   is allowed and does not compromise the pure-config property, which applies to
+   *models* rather than to sources.
+4. **STOCHADEX_GAPS entry 1 is engine work, unambiguously.** A `scan` primitive concerns
+   the expressiveness of forward simulation, which this branch places squarely in the
+   engine. That is what makes the upstream release work resolvable rather than another
+   boundary argument.
+
+Three of PLAN.md's Phase 3 spikes are affected by the premises recorded above rather
+than by this decision: 3.2 has nothing to exercise (no data-agreement layer exists),
+and the streaming-source half of 3.1 is now scoped to a downstream source. Those are
+consequences of the measurements, not of the branch.
 
 ---
 
