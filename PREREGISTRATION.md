@@ -1084,3 +1084,128 @@ Nothing here is a calibration; no parameter was fitted to any market number, and
 target bands carry the standing confound — both real flows are inferred from net depth
 changes — so a model landing inside them would establish that a pure-config mechanism
 reproduces the measured signature, not that the signature is a property of order flow.
+
+---
+
+## Damping strength — the project's FIRST CALIBRATION, fixed before the sweep is run
+
+**Fixed 2026-07-31, committed before `cfg/lob_damping.yaml` exists and before any value of
+γ other than 1 has been run.**
+
+### Read this first: this block breaks a property every previous block had
+
+Every claim in this repo says, in one form or another, *nothing here is fitted to market
+data*. **This block fits a parameter to a market number.** That is a deliberate change of
+activity — Phase 2 is calibration and this is the first of it — but it means the resulting
+claims cannot be worded like the previous ones, and it means the usual danger is now the
+main danger: γ was pre-registered as a *sweep* precisely because I have already seen that
+γ = 1 misses, and a sweep with a free hand is fitting dressed as discovery.
+
+Three structural commitments make it a test rather than a fit:
+
+1. **One parameter, one target, stated now.** γ is fitted to `corr(depth, arrivals)` and to
+   nothing else.
+2. **Two held-out targets become predictions.** `corr(depth, cancels)` and
+   `corr(arrivals, cancels)` are *not* fitted to and are scored at whatever γ the rule
+   below selects. One parameter cannot chase three numbers; the other two are free to miss.
+3. **The grid and the selection rule are mechanical and fixed here**, so there is no room
+   to refine toward an answer.
+
+### My contamination, declared
+
+I have run γ = 1 and seen its scores: `corr(depth, arrivals)` −0.417,
+`corr(depth, cancels)` −0.286, `corr(arrivals, cancels)` +0.822, clip 4.21%, drift 1.164,
+spread sd 0.530. That point is in the sweep and is not blind. Every other grid point is.
+
+### The mechanism, stated before measuring
+
+Exactly one thing changes from `cfg/lob_persistent.yaml`:
+
+	s_eff = arrival_scale · (act_ref / act)^γ
+
+γ = 1 is the persistent model already scored. **γ = 0 is not `cfg/lob_arrivals.yaml`** —
+it is that file's activity-independent *damping* carrying a *persistent* driver, which no
+model has run, so its value is unknown and that endpoint is blind like the rest. Nothing
+else moves.
+
+### The grid, the fit target and the selection rule — all mechanical
+
+- **Grid:** γ ∈ **{0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0}**. Seven points, fixed. No
+  interpolation, no refinement, no adding points afterwards.
+- **Fit target:** `corr(depth, arrivals)` = **−0.2128**, the mean across the five
+  concurrently-recorded Binance segments (−0.267, −0.339, −0.121, −0.131, −0.206). Computed
+  from data already in hand and stated here so it cannot drift.
+- **Rule:** take the grid γ whose `corr(depth, arrivals)` is **closest in absolute
+  distance** to −0.2128. Ties go to the **larger** γ.
+- **Per-point control:** at each grid point `churn_rate` is re-set on **mean depth alone**
+  to land in **227.8–235.9**, the range the previous two models produced, so depth level is
+  held roughly fixed across the sweep and γ is the only thing varying in effect. No
+  correlation is computed while choosing, exactly as in the previous three blocks.
+
+**If no grid point brings `corr(depth, arrivals)` within 0.05 of the target**, the fit
+fails outright: AE, AF and AG are recorded as **not reached**, and the finding is that this
+damping family cannot produce the observed arrival-side strength at any strength setting.
+
+### Validity precondition, unchanged
+
+The `min()` clip must bind on **< 5%** of level-steps at the selected γ, reported. Above
+that, AE is recorded **inconclusive** rather than scored, for the reason the churn block
+established.
+
+### Predictions
+
+**AC — the depth response is monotone in γ.** `|corr(depth, arrivals)|` increases across
+the grid as γ increases.
+
+**AD — the co-movement is monotone in γ.** `corr(arrivals, cancels)` decreases across the
+grid as γ increases.
+
+AC and AD are *expected* — that is the mechanism's whole logic — and are declared as the
+weaker predictions. They are scored because **they are preconditions for the fit being
+well-posed at all**: if the response is not monotone, "choose γ to hit a target" is
+ill-defined and the selected point is arbitrary. They are also where a surprise would
+appear if the damping is doing something other than what is assumed.
+
+**AE — the held-out depth target lands.** At the selected γ, `corr(depth, cancels)` lies in
+**[−0.30, −0.01]**, AND arrivals remain the stronger brake
+(`|corr(depth, arrivals)| > |corr(depth, cancels)|`).
+
+**This is the test.** γ is fitted to the arrival side; the cancellation side is free to
+land anywhere. The five segments put it at −0.127 on average with the ordering holding on
+all five, so the band and the ordering are both real constraints rather than formalities.
+I do not know whether one parameter can satisfy both sides at once.
+
+**AF — the held-out co-movement target clears.** At the selected γ,
+`corr(arrivals, cancels)` > **+0.85**.
+
+The second held-out number, and the one the persistent model missed at +0.822. Lower γ
+should raise it, so this is where the sweep is *expected* to help — but the selected γ is
+chosen by the arrival side, not by this, so it may land anywhere.
+
+**AG — the book survives at the selected γ.** Drift < **1.3**, spread sd > **0.1**.
+
+### What each outcome means
+
+| AC/AD | AE | AF | AG | reading |
+|---|---|---|---|---|
+| pass | **pass** | pass | pass | One parameter, fitted to one market number, reproduces the other two. **That is a calibration that predicts**, and it is the first result in this project that would justify attempting Phase 2 properly. Subject to the standing confound, which does not go away. |
+| pass | **pass** | **fail** | — | The depth structure is reconcilable but the co-movement is not — the saturation cost is not escapable by weakening the damping, and something other than the damping has to supply the co-movement. |
+| pass | **fail** | — | — | One parameter cannot satisfy both sides of the depth signature. The arrival and cancellation correlations are not two views of one mechanism, and the model needs a second, separately-motivated term. |
+| **fail** | — | — | — | The response is not monotone in γ, so the fit is ill-posed and the selected point means nothing. AE–AG would be recorded as not reached, and the damping does not behave as its algebra suggests — which would need diagnosing before anything else. |
+| — | *inconclusive* | — | — | Clip bound above 5% at the selected γ. Same treatment as the previous block. |
+| *fit fails* | — | — | — | No grid point within 0.05 of −0.2128. The family cannot produce the observed arrival-side strength at any setting, which is a cleaner elimination than any of the four so far. |
+
+### What a pass would and would not establish
+
+It **would** establish that one pure-config parameter, fitted to one market number,
+predicts two others it was not fitted to. That is a real and unusual thing for this project
+to be able to say, and it is the first step of Phase 2 rather than the end of it.
+
+It would **not** establish that the mechanism is right. The three target numbers come from
+Binance segments whose arrival and cancellation counts are both inferred from net depth
+changes — narrower than first stated (see the 2026-07-31 correction above) but not
+eliminated — so a model that reproduces them reproduces *the measured signature*, which may
+not be a property of order flow. It would also be a fit on five segments in one 8-minute
+window on one venue, with no out-of-sample window, no second venue and no asset class other
+than crypto spot. **The natural next step after a pass is a fresh recording and a
+prediction against it, not a stronger claim about this one.**
