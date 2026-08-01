@@ -1209,3 +1209,85 @@ not be a property of order flow. It would also be a fit on five segments in one 
 window on one venue, with no out-of-sample window, no second venue and no asset class other
 than crypto spot. **The natural next step after a pass is a fresh recording and a
 prediction against it, not a stronger claim about this one.**
+
+### Scored, 2026-07-31
+
+**The fit succeeded and the rule selected γ = 0.6**, at a distance of **0.0207** from the
+−0.2128 target — well inside the 0.05 at which this document declared the fit would have
+failed outright. **Validity precondition met:** the clip bound on **3.99%** of level-steps
+at the selected point.
+
+The full sweep, with `churn_rate` set per point on mean depth alone:
+
+| γ | churn | `corr(d,arr)` | `corr(d,can)` | `corr(arr,can)` | drift | sd | clip% | depth |
+|---|---|---|---|---|---|---|---|---|
+| 0.0 | 1.128 | **+0.277** | +0.420 | +0.885 | 1.006 | 0.724 | 4.12 | 231.2 |
+| 0.2 | 1.096 | +0.064 | +0.200 | +0.883 | 1.035 | 0.523 | 4.06 | 234.5 |
+| 0.4 | 1.091 | −0.067 | +0.036 | +0.878 | 1.055 | 0.491 | 3.95 | 229.8 |
+| 0.5 | 1.075 | −0.152 | −0.037 | +0.873 | 0.951 | 0.578 | 4.28 | 229.5 |
+| **0.6** | **1.075** | **−0.234** | **−0.138** | **+0.876** | **0.976** | **0.515** | **3.99** | **223.0** |
+| 0.8 | 1.069 | −0.311 | −0.159 | +0.839 | 0.963 | 0.478 | 4.08 | 221.7 |
+| 1.0 | 1.061 | −0.394 | −0.260 | +0.823 | 1.080 | 0.529 | 4.73 | 228.0 |
+
+| | prediction | measured | |
+|---|---|---|---|
+| **AC** | `\|corr(depth, arrivals)\|` monotone increasing in γ | crosses zero; not monotone | **FAIL** |
+| **AD** | `corr(arrivals, cancels)` monotone decreasing in γ | falls +0.885→+0.823, inverts once by 0.003 | **FAIL** |
+| **AE** | held-out `corr(depth, cancels)` in band, arrivals stronger | **−0.138**, margin +0.096 | **pass** |
+| **AF** | held-out `corr(arrivals, cancels)` > +0.85 | **+0.876** | **pass** |
+| **AG** | drift < 1.3, spread sd > 0.1 | 0.976, 0.515 | **pass** |
+
+#### The result: one parameter, fitted to one number, predicted two others
+
+| | fitted? | model | Binance |
+|---|---|---|---|
+| `corr(depth, arrivals)` | **FITTED** | −0.234 | −0.213 (five-segment mean) |
+| `corr(depth, cancels)` | held out | **−0.138** | −0.127 (five-segment mean) |
+| `corr(arrivals, cancels)` | held out | **+0.876** | +0.940 … +0.980 |
+
+The cancellation side was free to land anywhere in [−1, +1] and landed **0.011** from the
+market mean, with the ordering intact. This is the first predictive statement this project
+has produced.
+
+#### AC failed, and the fault is the prediction's
+
+`corr(depth, arrivals)` **crosses zero inside the grid** — +0.277 at γ=0, −0.394 at γ=1 —
+so its absolute value dips and rises. AC was written with the absolute value and is false.
+The **signed** response is strictly monotone across all seven points, which is what AC
+existed to establish and what makes the fit well-posed; restating it that way is a
+post-hoc reformulation and is claimed as measured structure rather than as a prediction
+that passed.
+
+The zero crossing **confirms** something pre-registered earlier: the persistent-driver
+block declared, before running, that constant marketable consumption competes with the
+damping and pushes this correlation positive. At γ=0 that effect is all there is, and it
+wins. The competing effect was real and was simply outweighed at γ=1.
+
+#### AD failed narrowly
+
+Co-movement falls +0.885 → +0.823 as predicted but inverts once, by **0.003**, between
+γ=0.5 and γ=0.6. That is within run-to-run noise on a single seed. Saying so does not turn
+a failed prediction into a passed one, and no repeat-seed run was made — it would have to
+be pre-registered, since it would be run knowing which pair inverted.
+
+#### Where the control missed its own band
+
+`churn_rate` was set per point on mean depth into a stated 227.8–235.9. Two points missed:
+γ=0.6 at **223.0** (the selected one) and γ=0.8 at 221.7. Depth spans 221.7–234.5 across
+the sweep — held roughly but not exactly fixed, and 2.1% below the floor at the point that
+matters. Declared rather than smoothed.
+
+#### What this establishes, and the four things it does not
+
+It establishes that **one pure-config parameter, fitted to one market number by a rule
+fixed in advance, predicts a second to within 0.011 and clears a pre-registered floor on a
+third.**
+
+It does not establish that the mechanism is right. It does not escape the standing
+inference confound, so what is reproduced is the *measured* signature. It is five segments
+in one 8-minute window on one venue, one seed, with **no out-of-sample test of any kind**.
+And the co-movement, at +0.876 against a market +0.94–+0.98, is narrowed rather than
+matched — the one gap that has survived every model in this project.
+
+**The next step fixed before this result existed still stands: a fresh recording and a
+prediction against it, not a stronger claim about this one.**

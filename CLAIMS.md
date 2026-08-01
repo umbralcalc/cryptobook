@@ -198,6 +198,56 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** mean resting depth over the second half of the scored window divided by the first half (a conserved book gives ~1); spread sd in ticks over two-sided steps; and mean depth in lots — second half / first half 1.16 · spread sd 0.53 · mean depth 235.36 (asserts second half / first half < 1.3 (pre-registered), spread sd > 0.1 (pre-registered))
 - **Does not support:** Mean depth is NOT a result — churn_rate was re-set to 1.05 on exactly this quantity, the one adjustment the pre-registration permits, so it is provenance. Drift at 1.164 is the highest of any surviving model here and clears 1.3 with less room than the previous mechanism's 1.020, which is consistent with a moving equilibrium being harder to conserve around. A passing cost check on a mechanism whose two substantive predictions failed is not a partial success.
 
+### `prediction_ac_the_depth_response_is_monotone_in_gamma_but_crosses_zero`
+
+> Prediction AC, FAILED AS WRITTEN, and the fault is the prediction's rather than the model's. AC said |corr(depth, arrivals)| increases with the damping exponent. It does not, because the correlation CROSSES ZERO inside the grid — +0.277 at γ=0, -0.394 at γ=1 — so its absolute value dips through the crossing and rises again. The SIGNED response is strictly monotone decreasing across all seven points, which is what AC existed to establish: it is what makes fitting γ to a target well-posed. The zero crossing also CONFIRMS the competing effect cfg/lob_persistent.yaml declared before running — constant marketable consumption pushes this correlation positive, and at γ=0 it is all there is and it wins.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator whose damping exponent IS FITTED to a Binance measurement; the other two correlations are held out
+- **Enforced by:** [`TestDampingCalibration/prediction_ac_the_depth_response_is_monotone_in_gamma_but_crosses_zero`](pkg/damping/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and arrival flow, signed, at each grid value of the damping exponent — γ 0.0 0.28 · γ 0.2 0.06 · γ 0.4 -0.07 · γ 0.5 -0.15 · γ 0.6 -0.23 · γ 0.8 -0.31 · γ 1.0 -0.39 (asserts values decrease in order)
+- **Does not support:** The monotone quantity here is the SIGNED correlation, which is not what AC predicted — restating it this way is a post-hoc reformulation and is claimed as the measured structure, not as a prediction that passed. One seed per grid point. The fit target is a market number, so this package is a calibration and no part of it is evidence that the mechanism is right.
+
+### `prediction_ad_the_co_movement_falls_with_gamma_but_not_monotonically`
+
+> Prediction AD, FAILED, narrowly. Co-movement falls from +0.885 at γ=0 to +0.823 at γ=1, which is the direction predicted, but the ordering inverts once — by 0.003, between γ=0.5 and γ=0.6 — so it is not monotone and AD said monotone. An inversion of 0.003 on a single seed is within run-to-run noise, and saying so does not convert a failed prediction into a passed one.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator whose damping exponent IS FITTED to a Binance measurement; the other two correlations are held out
+- **Enforced by:** [`TestDampingCalibration/prediction_ad_the_co_movement_falls_with_gamma_but_not_monotonically`](pkg/damping/behaviour_test.go)
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts at each grid value of the damping exponent — γ 0.0 0.88 · γ 0.2 0.88 · γ 0.4 0.88 · γ 0.5 0.87 · γ 0.6 0.88 · γ 0.8 0.84 · γ 1.0 0.82 (asserts γ 0.0 > +0.87 at γ=0, γ 1.0 < +0.83 at γ=1)
+- **Does not support:** Endpoints are asserted rather than the ordering, because the ordering is what failed. With one seed per point this cannot separate a real non-monotonicity from noise, and no repeat-seed run was made — which would itself need pre-registering, since it would be run knowing which pair inverted.
+
+### `prediction_ae_a_parameter_fitted_to_the_arrival_side_predicts_the_cancellation_side`
+
+> Prediction AE, PASSED, and it is the result. The damping exponent was fitted to ONE market number — corr(depth, arrivals), five-segment Binance mean -0.2128 — by a grid and rule fixed before the sweep ran, selecting γ=0.6 at a distance of 0.021. The cancellation side was NOT fitted to and was free to land anywhere: it reads -0.138 against the five-segment mean of -0.127, inside the pre-registered [-0.30, -0.01], with arrivals still the stronger brake as on all five segments. One parameter, fitted to one number, predicted another to within 0.011.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator whose damping exponent IS FITTED to a Binance measurement; the other two correlations are held out
+- **Enforced by:** [`TestDampingCalibration/prediction_ae_a_parameter_fitted_to_the_arrival_side_predicts_the_cancellation_side`](pkg/damping/behaviour_test.go)
+- **Observed:** Pearson correlation between resting depth and cancellation flow (HELD OUT); the margin by which arrivals are the stronger brake; the fitted arrival-side correlation, which is provenance and not a result; and the clip-binding rate — depth vs cancellations (held out) -0.14 · margin 0.10 · depth vs arrivals (FITTED) -0.23 · clip-binding rate, percent 3.99 (asserts depth vs cancellations (held out) < -0.01 (band ceiling), depth vs cancellations (held out) > -0.30 (band floor), margin > 0 (arrivals the stronger), clip-binding rate, percent < 5% (validity precondition))
+- **Does not support:** A calibration, not a mechanism result: it says a pure-config parameter fitted to one market number predicts another, not that the model is right. Both targets carry the standing inference confound — arrivals and cancellations are inferred from net depth changes — so what is reproduced is the MEASURED signature. It is five segments in one 8-minute window on one venue, single seed, with NO out-of-sample test; the honest next step is a fresh recording and a prediction against it. The depth control also missed its own band here: mean depth is 223.0 against the 227.8-235.9 the rule specified.
+
+### `prediction_af_the_held_out_co_movement_clears_its_floor`
+
+> Prediction AF, PASSED. The second held-out number: at the γ chosen by the arrival side alone, co-movement reads +0.876, clearing the pre-registered +0.85 floor that cfg/lob_persistent.yaml missed at +0.822. Weakening the damping reduces the saturation that cost the co-movement there — arrivals track the driver more nearly proportionally again — and the improvement came without being aimed at.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator whose damping exponent IS FITTED to a Binance measurement; the other two correlations are held out
+- **Enforced by:** [`TestDampingCalibration/prediction_af_the_held_out_co_movement_clears_its_floor`](pkg/damping/behaviour_test.go)
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations (held out) 0.88 (asserts arrivals vs cancellations (held out) > +0.85 (pre-registered))
+- **Does not support:** Clears a floor; does not match the market. Binance reads +0.940 to +0.980 and this is +0.876, so the gap that has persisted through every model in this project is narrowed rather than closed. The floor was set below the incumbent deliberately, so clearing it is a weaker statement than matching would be.
+
+### `prediction_ag_the_book_survives_the_calibrated_damping`
+
+> Prediction AG, PASSED. At the selected exponent the book stays conserved at a drift of 0.976 — the closest to 1.0 of any model here — and the spread keeps a live distribution at 0.515 ticks of standard deviation. A weaker activity dependence means a less mobile equilibrium than γ=1's, which is the likely reason conservation is tighter here than in cfg/lob_persistent.yaml's 1.164.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — persistent-driver generator whose damping exponent IS FITTED to a Binance measurement; the other two correlations are held out
+- **Enforced by:** [`TestDampingCalibration/prediction_ag_the_book_survives_the_calibrated_damping`](pkg/damping/behaviour_test.go)
+- **Observed:** mean resting depth over the second half of the scored window divided by the first half (a conserved book gives ~1); spread sd in ticks; and mean depth in lots — second half / first half 0.98 · spread sd 0.52 · mean depth 222.98 (asserts second half / first half < 1.3 (pre-registered), spread sd > 0.1 (pre-registered))
+- **Does not support:** Mean depth is provenance, not a result — churn_rate was set on it — and it is 223.0, BELOW the 227.8-235.9 the pre-registered control specified, so the control missed its own band by 2.1% at this point. That is declared rather than smoothed: depth is held roughly but not exactly fixed across the sweep, spanning 221.7 to 234.5.
+
 ### `prediction_b_churn_fails_to_break_the_depth_coupling`
 
 > Prediction B, FAILED — and it was the one that mattered. The depth/cancellation coupling was predicted to collapse below +0.2 and instead stayed near where the priced model left it. Real markets read about zero. Making churn dominate the cancellation FLOW did not remove the depth dependence, because the cancellation PATH still contains depth-dependent terms: residual attrition drawn against resting volume, and the clip that stops volume going negative.

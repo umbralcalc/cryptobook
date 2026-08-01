@@ -34,6 +34,7 @@ import (
 	"github.com/umbralcalc/cryptobook/pkg/baseline"
 	"github.com/umbralcalc/cryptobook/pkg/churn"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
+	"github.com/umbralcalc/cryptobook/pkg/damping"
 	"github.com/umbralcalc/cryptobook/pkg/lob"
 	"github.com/umbralcalc/cryptobook/pkg/persistent"
 	"github.com/umbralcalc/cryptobook/pkg/priced"
@@ -52,6 +53,7 @@ var providers = []func() []claims.Claim{
 	arrivals.ObservedBehaviour,   // Spike 2.2: depth-dependent arrivals — the mechanism that holds
 	recycled.ObservedBehaviour,   // Spike 2.2: depth-neutral churn — the mechanism that does not
 	persistent.ObservedBehaviour, // Spike 2.2: a persistent driver — the closest miss so far
+	damping.ObservedBehaviour,    // Spike 2.2: the first calibration — one parameter fitted, two held out
 	recovery.ObservedBehaviour,   // Spike 1.2: identification, ESS, recovery
 	windowing.ObservedBehaviour,  // Gate 3.4: how calibration degrades with window length
 	stability.ObservedBehaviour,  // Spike 4.2: the one output the minimal model supports

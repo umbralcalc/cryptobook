@@ -1404,6 +1404,73 @@ changes — so landing inside them would establish that a pure-config mechanism 
 the measured signature, not that the signature is a property of order flow.
 
 
+## The first calibration: one parameter fitted, two predictions held out — and they land
+
+Predictions AC–AG were committed before `cfg/lob_damping.yaml` existed. **AE, AF and AG
+pass; AC and AD fail.**
+
+**This block breaks a property every earlier one had.** Every other claim here says some
+version of *nothing is fitted to market data*. This one fits the damping exponent to a
+Binance number. That is Phase 2 beginning, not a slip — but it changes what the claims can
+say, and it is why the whole block was built around holding two targets out.
+
+| | fitted? | model | Binance |
+|---|---|---|---|
+| `corr(depth, arrivals)` | **FITTED** | −0.234 | −0.213 (five-segment mean) |
+| `corr(depth, cancels)` | held out | **−0.138** | −0.127 (five-segment mean) |
+| `corr(arrivals, cancels)` | held out | **+0.876** | +0.940 … +0.980 |
+
+γ was selected mechanically — grid, target and rule all fixed in advance — landing on 0.6
+at a distance of 0.021 from the target, inside the 0.05 at which the fit would have been
+declared failed. The cancellation side was free to land anywhere in [−1, +1] and came
+within **0.011** of the market mean with the ordering intact.
+
+### Why this is different from every previous result here
+
+Four mechanisms were eliminated by *failing* to reproduce a signature. This is the first
+one that reproduces something it was not shown. One parameter cannot chase three numbers,
+so the second and third are tests rather than fits — which is the only reason a
+calibration can be evidence at all.
+
+### AC failed, and the fault is mine rather than the model's
+
+`corr(depth, arrivals)` **crosses zero inside the grid**: +0.277 at γ=0, −0.394 at γ=1. Its
+absolute value therefore dips and rises, and AC — written with the absolute value — is
+false. The *signed* response is strictly monotone across all seven points, which is what AC
+existed to establish and what makes fitting well-posed, but restating it that way is a
+post-hoc reformulation and is recorded as measured structure, not as a prediction that
+passed.
+
+The crossing **confirms a prediction made earlier**: the persistent-driver block declared
+before running that constant marketable consumption competes with the damping and pushes
+this correlation positive. At γ=0 that effect is unopposed and it wins. The competing
+effect was real; at γ=1 it was simply outweighed.
+
+### AD failed narrowly, and the noise floor is now visible
+
+Co-movement falls +0.885 → +0.823 as predicted but inverts once, by **0.003**, between
+γ=0.5 and γ=0.6. That is within single-seed run-to-run variation — which is itself worth
+recording, because it puts a rough floor of a few thousandths on how finely any correlation
+in this project can be read.
+
+### Where the control missed its own band, declared
+
+`churn_rate` was set per grid point on mean depth into a stated 227.8–235.9. Two points
+missed: the selected γ=0.6 at **223.0** and γ=0.8 at 221.7. Depth spans 221.7–234.5 across
+the sweep — roughly but not exactly fixed, and 2.1% low at the point that matters.
+
+### What it does not establish, in four parts
+
+Not that the mechanism is right. Not free of the standing inference confound, so what is
+reproduced is the *measured* signature. Five segments, one 8-minute window, one venue, one
+seed, and **no out-of-sample test of any kind**. And the co-movement at +0.876 against a
+market +0.94–+0.98 is narrowed, not matched — the one gap that has survived every model
+built here.
+
+**The next step was fixed before this result existed and still stands: a fresh recording
+and a prediction against it, not a stronger claim about this one.**
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
