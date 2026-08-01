@@ -1291,3 +1291,107 @@ matched — the one gap that has survived every model in this project.
 
 **The next step fixed before this result existed still stands: a fresh recording and a
 prediction against it, not a stronger claim about this one.**
+
+---
+
+## Out-of-sample: does the calibrated model survive a fresh window? Fixed before recording
+
+**Fixed 2026-08-01 08:45 UTC, before any new data exists.** This is the step the previous
+block committed to *before its own result was known*: "a fresh recording and a prediction
+against it, not a stronger claim about this one."
+
+### The model is frozen
+
+`cfg/lob_damping.yaml` as shipped: `damping_gamma` 0.6, `churn_rate` 1.075, every other
+parameter inherited. **Nothing may be refitted for this test, ever.** If the fresh window
+disagrees, the model was wrong about the fresh window — that is the whole point, and
+re-tuning γ afterwards would destroy the only out-of-sample evidence this project has.
+
+### Protocol
+
+The same five symbols — `BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, `DOGEUSDT` — recorded
+**concurrently**, 8 minutes, one-second buckets, `feed.DefaultLotSize`, identical in every
+respect to the 2026-07-30 capture **except the wall-clock window**. Time is the only thing
+that varies, so nothing else can explain a difference.
+
+The original capture was Thursday 2026-07-30, ~07:00 UTC. This one is **Saturday
+2026-08-01**, which is a genuinely different regime for crypto — weekend flow is thinner
+and less intermediated — and that is a reason to expect the market itself to have moved.
+
+**Data quality gates, fixed now:** any segment with a sequence gap or with suspect rows is
+excluded and the exclusion reported. Fewer than five clean segments is reported rather than
+worked around.
+
+### The test is only meaningful if the market moved — pre-registered as a gate
+
+A fresh window that reads the same as the old one tests nothing: the model would "predict"
+numbers that never changed. So this is fixed **before** seeing them:
+
+> If the fresh five-symbol mean `corr(depth, arrivals)` is within **0.03** of the old
+> −0.2128, the test is recorded as **WEAK BY CONSTRUCTION** — the window did not differ
+> enough to test anything — regardless of whether AH–AK pass.
+
+The market's own drift, per symbol and in the mean, is **reported alongside the model's
+error in every case**, so a reader can see whether the model tracked a moving target or
+merely sat where the market stayed.
+
+### Where the tolerances come from, and what they are not
+
+The only temporal comparison this project has is BTCUSDT across two windows:
+`corr(depth, arrivals)` −0.212 → −0.267 (0.055 apart) and `corr(depth, cancels)` −0.123 →
+−0.220 (0.097 apart). **The market's own single-symbol drift between windows is therefore
+0.05–0.10.**
+
+Tolerances below are set at **0.12** — above that observed drift, so they are calibrated to
+market instability rather than to model precision. A tighter bound would be predicting the
+model tracks the market more closely than the market tracks itself. This is stated so the
+bound is not later read as a precision claim: it is not.
+
+### Predictions
+
+**AH — the fitted quantity survives the window change.** The fresh five-symbol mean
+`corr(depth, arrivals)` is within **0.12** of the model's **−0.234**.
+
+γ was fitted to the *old* mean. This asks whether that target was a property of the market
+or of one Thursday morning. **If AH fails, the calibration was fitted to a transient** and
+the previous block's result is much weaker than it reads — which is the single most
+important thing this recording can tell us.
+
+**AI — the held-out quantity survives out of sample.** The fresh five-symbol mean
+`corr(depth, cancels)` is within **0.12** of the model's **−0.138**.
+
+**This is the test.** It was held out from the fit, and it is now held out in *time* as
+well. A model that lands here has predicted a number it was never shown, in a window it
+was never fitted to.
+
+**AJ — the co-movement gap stays bounded.** The model's **+0.876** is within **0.15** of
+the fresh five-symbol mean.
+
+Stated as a bound rather than a match because the gap is already known: the market reads
++0.94–+0.98 and the model +0.876. This asks whether the gap stays roughly where it is or
+widens, not whether it closes. Predicting it closes would be predicting a known failure
+away.
+
+**AK — the ordering replicates.** `|corr(depth, arrivals)| > |corr(depth, cancels)|` on
+**every** fresh segment.
+
+It has held on all six segments recorded so far. A single counterexample matters more than
+the mean here, so this is scored per segment rather than on the average.
+
+### What each outcome means
+
+| gate | AH | AI | reading |
+|---|---|---|---|
+| moved | pass | **pass** | The model predicts, out of sample, a quantity it was never fitted to, in a window it was never fitted to. That is the strongest statement this project could make on the data it is permitted to use, and it is what would justify Phase 3 in earnest. |
+| moved | pass | **fail** | The market signature is stable but the model's held-out agreement was in-sample luck. The calibration reproduces what it was fitted to and nothing more — which is the ordinary fate of one-parameter fits and would be an honest place to stop. |
+| moved | **fail** | — | The fit target was a property of one window. γ was calibrated to a transient, and the previous block's result must be restated as such. The most informative failure available here. |
+| **weak** | — | — | The window did not differ enough. Nothing is established either way, no claim is published from it, and the honest response is a third recording at a genuinely different time rather than a re-reading of this one. |
+
+### What even a full pass would not establish
+
+One venue, crypto spot, two 8-minute windows two days apart, five USDT majors, one seed on
+the model side. It would not touch the standing inference confound — both real flows are
+still inferred from net depth changes — so what would be reproduced out of sample is still
+the *measured* signature. And the co-movement would still be narrowed rather than matched.
+
+A pass would justify **more recordings across more windows**, not a claim about markets.
