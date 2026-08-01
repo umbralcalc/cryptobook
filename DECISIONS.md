@@ -1471,6 +1471,75 @@ built here.
 and a prediction against it, not a stronger claim about this one.**
 
 
+## Out of sample, the calibration fails — and the market, not the model, is what moved
+
+Predictions AH–AK were committed in `f166872` before the window was recorded. **AH, AI and
+AK fail; AJ passes.** The model was frozen throughout and a test asserts it still is.
+
+Capture: Saturday 2026-08-01, 08:51–08:59 UTC, five symbols concurrently, 480 clean rows
+each, 0 suspect, 0 gaps. The pre-registered weak-test gate **did not fire** — the market
+moved 0.145 against a 0.03 threshold — so the verdicts are real rather than vacuous.
+
+| | old (Thu 07-30) | fresh (Sat 08-01) | market moved |
+|---|---|---|---|
+| mean `corr(depth, arrivals)` | −0.213 | **−0.068** | **+0.145** |
+| mean `corr(depth, cancels)` | −0.127 | **+0.035** | **+0.162** |
+| mean `corr(arrivals, cancels)` | +0.955 | +0.904 | −0.051 |
+
+BTCUSDT's arrival correlation **changed sign**, −0.267 → +0.058. ETHUSDT moved +0.359.
+
+### The finding
+
+**The signature this project has spent four mechanisms chasing is not stable over two
+days.** γ was fitted to a property of one Thursday morning, and the calibration does not
+transfer: the frozen model sits 0.166 and 0.173 from the fresh means against a 0.12
+tolerance that was itself set generously, from the market's own observed drift.
+
+The in-sample result is not retracted as a measurement — one parameter fitted to one
+number did put a held-out number within 0.011 of the market, and that happened. What is
+retracted is the *reading* that this was evidence of prediction. `pkg/damping`'s AE claim
+now carries **WITHDRAWN AS PREDICTIVE** and its package doc says so before anything else.
+
+### What is missing is sharper than any of the four eliminations gave
+
+The model cannot track this and **nothing in it could**: no parameter varies by window. A
+model that tracked it would need a regime changing over hours, and none of the five
+mechanisms tested here — prices, attrition removal, common-factor churn, recycled churn,
+persistent driver — has one. The persistent driver has a latent process with a ~5-step
+correlation time; this is a shift across hours, three orders of magnitude slower.
+
+That is a concrete, positively-stated gap, and it only became visible because a second
+window was recorded. It is worth more than the calibration it destroyed.
+
+### What survives, and it is the result that has never weakened
+
+Fresh `corr(depth, cancels)` per symbol: +0.057, +0.040, +0.050, −0.009, +0.037 — **every
+one below +0.2.** The coupling the model's parameterisation requires is absent on every
+symbol in a second independent window, so **Phase 2's central conclusion is now replicated
+across two windows as well as five instruments.**
+
+### One thing that would not replicate, recorded as context
+
+The cross-segment block's +0.9 co-movement floor **would fail on this window**: XRPUSDT
+reads +0.852 and DOGEUSDT +0.867. That is not a rescoring of a claim pre-registered
+against the segments it was measured on — it is evidence that the co-movement floor is
+also window-dependent, and that any future bound on it needs a temporal qualifier.
+
+### Why AJ passing says little
+
+The gap closed to 0.028 because the market's co-movement **came down** toward the model,
+not because the model rose. A loose bound on the one quantity that moved least is the
+weakest of the four results here.
+
+### What this does not establish
+
+Two windows on one venue give no distribution for the instability — many more recordings
+would. Nothing here identifies its cause; Saturday flow being thinner and less
+intermediated than Thursday's is the obvious candidate and is untested. And the standing
+inference confound is untouched: both flows are still inferred from net depth changes, so
+what moved may be the measurement's behaviour rather than the market's.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

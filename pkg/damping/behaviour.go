@@ -33,9 +33,22 @@
 //	corr(arrivals, cancels)   held out  +0.876     +0.940 .. +0.980
 //
 // One parameter, fitted to the first row, put the second row within 0.011 of the market
-// mean and cleared the pre-registered floor on the third. That is a calibration that
-// predicts, and it is the first thing in this project that would justify attempting
-// Phase 2 in earnest.
+// mean and cleared the pre-registered floor on the third.
+//
+// # And then it failed out of sample — read this before using any of it
+//
+// This block committed, before its own result was known, to a fresh recording and a
+// prediction against it. That was done on 2026-08-01 and the model FAILED it. The market
+// itself moved by more than 0.14 on both depth correlations in two days: the fitted
+// quantity went -0.213 to -0.068, the held-out one -0.127 to +0.035, and the frozen model
+// is ~0.17 from each against a 0.12 tolerance.
+//
+// So the numbers below stand as measured and their READING does not. gamma was fitted to a
+// property of one Thursday morning, not of this market, and the in-sample agreement was
+// not evidence of prediction. pkg/oos carries the out-of-sample scores; this package is
+// kept because the failing out-of-sample claims are measured against exactly this model,
+// and because a calibration that was honestly tested and honestly failed is worth more on
+// the record than one that was never tested.
 //
 // # What failed, and it was my formulation rather than the model
 //
@@ -260,9 +273,13 @@ func ObservedBehaviour() []claims.Claim {
 				"parameter fitted to one market number predicts another, not that the " +
 				"model is right. Both targets carry the standing inference confound — " +
 				"arrivals and cancellations are inferred from net depth changes — so what " +
-				"is reproduced is the MEASURED signature. It is five segments in one " +
-				"8-minute window on one venue, single seed, with NO out-of-sample test; " +
-				"the honest next step is a fresh recording and a prediction against it. " +
+				"is reproduced is the MEASURED signature. WITHDRAWN AS PREDICTIVE 2026-08-01: " +
+				"the out-of-sample test this result committed to was run, and FAILED. A " +
+				"second window two days later put the fitted correlation at -0.068 and " +
+				"this held-out one at +0.035, both having moved by more than 0.14, and " +
+				"the frozen model sits 0.17 away from each. The in-sample agreement " +
+				"below stands as measured; the reading that it was evidence of " +
+				"PREDICTION does not. See pkg/oos. " +
 				"The depth control also missed its own band here: mean depth is 223.0 " +
 				"against the 227.8-235.9 the rule specified.",
 			Thresholds: []claims.Threshold{
@@ -295,7 +312,10 @@ func ObservedBehaviour() []claims.Claim {
 				"to +0.980 and this is +0.876, so the gap that has persisted through every " +
 				"model in this project is narrowed rather than closed. The floor was set " +
 				"below the incumbent deliberately, so clearing it is a weaker statement " +
-				"than matching would be.",
+				"than matching would be. Out of sample this is the ONE quantity that " +
+				"held: a second window read +0.904 against the model's +0.876, inside " +
+				"the bound pre-registered for it — partly because the market's own " +
+				"co-movement fell rather than because the model improved. See pkg/oos.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: true, Ref: coMovementFloor, RefLabel: "+0.85 (pre-registered)"},
 			},

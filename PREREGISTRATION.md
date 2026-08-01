@@ -1395,3 +1395,79 @@ still inferred from net depth changes — so what would be reproduced out of sam
 the *measured* signature. And the co-movement would still be narrowed rather than matched.
 
 A pass would justify **more recordings across more windows**, not a claim about markets.
+
+### Scored, 2026-08-01
+
+Capture: Saturday 2026-08-01, 08:51–08:59 UTC, five symbols concurrently, **480 clean rows
+each, 0 suspect, 0 gaps**. No segment excluded.
+
+**The gate did NOT fire.** The market moved **+0.145** on the mean arrival correlation,
+against the 0.03 threshold at which this test would have been recorded weak by
+construction. So the window genuinely differed and the verdicts below are real.
+
+| | old (Thu 07-30) | fresh (Sat 08-01) | market moved |
+|---|---|---|---|
+| mean `corr(depth, arrivals)` | −0.213 | **−0.068** | **+0.145** |
+| mean `corr(depth, cancels)` | −0.127 | **+0.035** | **+0.162** |
+| mean `corr(arrivals, cancels)` | +0.955 | +0.904 | −0.051 |
+
+Per symbol, the arrival correlation moved by +0.325 (BTCUSDT), +0.359 (ETHUSDT), −0.037
+(SOLUSDT), −0.058 (XRPUSDT), +0.138 (DOGEUSDT). **BTCUSDT changed sign**, −0.267 → +0.058.
+
+| | prediction | measured | |
+|---|---|---|---|
+| **AH** | fitted correlation within 0.12 of the model's −0.234 | **0.166** away | **FAIL** |
+| **AI** | held-out correlation within 0.12 of the model's −0.138 | **0.173** away | **FAIL** |
+| **AJ** | co-movement within 0.15 of the model's +0.876 | 0.028 away | pass |
+| **AK** | ordering on every segment | 4 of 5; fails on ETHUSDT | **FAIL** |
+
+#### The pre-registered reading, and it is the one this document called most informative
+
+AH's failure lands on the row fixed in advance: *"The fit target was a property of one
+window. γ was calibrated to a transient, and the previous block's result must be restated
+as such. The most informative failure available here."*
+
+That is what happened, and the restatement has been made — `pkg/damping`'s AE claim now
+carries **WITHDRAWN AS PREDICTIVE**, and the package doc says so before anything else. The
+in-sample numbers stand as measured. The reading that they were evidence of *prediction*
+does not.
+
+#### What actually moved was the market, not the model
+
+The model cannot track this and nothing in it could: no parameter varies by window. A model
+that did track it would need a regime changing over hours, which **none of the five
+mechanisms tested in this project has**. That is a sharper statement of what is missing
+than any of the four eliminations produced, and it is only visible because a second window
+was recorded.
+
+#### AJ passed, and mostly for the wrong reason
+
+The gap closed to 0.028 — but because the market's co-movement **fell** from a +0.940 floor
+to +0.852 (XRPUSDT) and +0.867 (DOGEUSDT), not because the model rose. Note the
+consequence: **the cross-segment replication's +0.9 co-movement floor would not hold on
+this window.** That is recorded as context, not as a rescoring of a claim that was
+pre-registered against the segments it was measured on.
+
+#### AK failed, and carries less than the other two
+
+Arrivals were the stronger brake on all six earlier segments and on four of five here,
+failing on ETHUSDT (+0.020 vs +0.040). With both correlations within 0.05 of zero in this
+window there is little left to order, so this may be noise around zero rather than a
+reversal — which does not rescue a prediction written without a magnitude qualifier, but
+does mean it carries less than AH and AI.
+
+#### What survives, and it is the thing that always mattered most
+
+Fresh `corr(depth, cancels)` per symbol: +0.057, +0.040, +0.050, −0.009, +0.037 — **every
+one below +0.2.** The coupling the model's parameterisation requires, `cancel_rate × depth`,
+is still absent on every symbol in a second independent window. **Phase 2's central
+conclusion is now replicated across two windows as well as five instruments**, and it is
+the one result in this project that has never weakened.
+
+#### What this establishes
+
+That the depth-correlation signature this project has been chasing is **not stable over
+two days**, and that a one-parameter calibration to it does not transfer. Two windows on
+one venue do not give a distribution for that instability — many more recordings would —
+and nothing here identifies the cause, though Saturday flow being thinner and less
+intermediated than Thursday's is the obvious candidate and is untested.
