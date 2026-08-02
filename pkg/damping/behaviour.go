@@ -217,7 +217,7 @@ func ObservedBehaviour() []claims.Claim {
 			Data:  dataset,
 			Unit: "Pearson correlation between resting depth and arrival flow, signed, " +
 				"at each grid value of the damping exponent",
-			Limitations: "The monotone quantity here is the SIGNED correlation, which is " +
+			Limitations: "BELOW THE RESOLUTION, measured 2026-08-02: adjacent grid points differ by about 0.11 in this quantity while its eight-seed range at fixed gamma is 0.132. The step-by-step ordering is therefore not resolvable at one seed per point, and the monotonicity should be read as an overall trend across the grid rather than as a fact about any adjacent pair. " + "The monotone quantity here is the SIGNED correlation, which is " +
 				"not what AC predicted — restating it this way is a post-hoc " +
 				"reformulation and is claimed as the measured structure, not as a " +
 				"prediction that passed. One seed per grid point. The fit target is a " +
@@ -240,7 +240,7 @@ func ObservedBehaviour() []claims.Claim {
 			Data:  dataset,
 			Unit: "Pearson correlation between per-step arrival and cancellation counts " +
 				"at each grid value of the damping exponent",
-			Limitations: "Endpoints are asserted rather than the ordering, because the " +
+			Limitations: "BELOW THE RESOLUTION: the 0.003 inversion was already called noise, and the audit quantifies it — the eight-seed range of this quantity at fixed gamma is 0.038, ten times the inversion. No ordering between adjacent grid points is resolvable at one seed per point. " + "Endpoints are asserted rather than the ordering, because the " +
 				"ordering is what failed. With one seed per point this cannot separate a " +
 				"real non-monotonicity from noise, and no repeat-seed run was made — " +
 				"which would itself need pre-registering, since it would be run knowing " +
@@ -269,7 +269,7 @@ func ObservedBehaviour() []claims.Claim {
 				"(HELD OUT); the margin by which arrivals are the stronger brake; the " +
 				"fitted arrival-side correlation, which is provenance and not a result; " +
 				"and the clip-binding rate",
-			Limitations: "A calibration, not a mechanism result: it says a pure-config " +
+			Limitations: "SEED-FRAGILE IN PART: the held-out correlation stays inside its band across all eight seeds (-0.184 to -0.047), so that half is robust. The ORDERING margin is not — it is 0.096 here against per-quantity seed ranges of 0.132 and 0.137, so an adverse seed pairing could invert it. And the gamma SELECTION that produced this model was made on a 0.021 distance against a 0.132 seed range, so the grid point chosen was not resolvable from its neighbours: a different seed would likely have selected a different gamma. That is a third independent reason the calibration headline was wrong, and the most fundamental — the procedure lacked the resolution to do what it claimed. " + "A calibration, not a mechanism result: it says a pure-config " +
 				"parameter fitted to one market number predicts another, not that the " +
 				"model is right. Both targets carry the standing inference confound — " +
 				"arrivals and cancellations are inferred from net depth changes — so what " +
@@ -312,7 +312,7 @@ func ObservedBehaviour() []claims.Claim {
 			Phase: phase,
 			Data:  dataset,
 			Unit:  "Pearson correlation between per-step arrival and cancellation counts",
-			Limitations: "Clears a floor; does not match the market. Binance reads +0.940 " +
+			Limitations: "SEED-FRAGILE, and this is the worst case in the audit: AF is a PASS that does not survive the seed. Over eight seeds this quantity spans +0.843 to +0.881 and the floor is +0.85, so several seeds FAIL it. The shipped seed passes; the model does not reliably. Treat AF as undecided rather than passed. " + "Clears a floor; does not match the market. Binance reads +0.940 " +
 				"to +0.980 and this is +0.876, so the gap that has persisted through every " +
 				"model in this project is narrowed rather than closed. The floor was set " +
 				"below the incumbent deliberately, so clearing it is a weaker statement " +

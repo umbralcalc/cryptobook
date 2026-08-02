@@ -196,7 +196,7 @@ func ObservedBehaviour() []claims.Claim {
 			Data:  dataset,
 			Unit: "Pearson correlation between resting depth and each flow; and the " +
 				"clip-binding rate, which is the validity precondition rather than a result",
-			Limitations: "A near miss is still a miss and the band does not move. The " +
+			Limitations: "SEED-FRAGILE, measured 2026-08-02: Y FAILED on the arrival side overshooting -0.40, and over eight seeds that quantity spans -0.417 to -0.301 — so most seeds do NOT overshoot and Y would have PASSED on them. The failure recorded here is a property of this seed, not of the model. " + "A near miss is still a miss and the band does not move. The " +
 				"bands came from Binance segments whose flows are both INFERRED from net " +
 				"depth changes, so the target itself carries the standing confound. The " +
 				"clip-binding rate is reported because a binding clip would tie " +
@@ -267,7 +267,7 @@ func ObservedBehaviour() []claims.Claim {
 			Phase: phase,
 			Data:  dataset,
 			Unit:  "Pearson correlation between per-step arrival and cancellation counts",
-			Limitations: "Pinned as a CEILING so a future fix breaks it loudly. Measured " +
+			Limitations: "SEED-FRAGILE: over eight seeds this spans +0.807 to +0.835 against the +0.85 floor, a margin of 0.015 at the closest. AA fails on every seed tested, so the direction is robust even though the margin is thin — unlike Y. " + "Pinned as a CEILING so a future fix breaks it loudly. Measured " +
 				"at one damping strength; it establishes that full strength costs enough " +
 				"to miss the floor, not where the boundary lies. The saturation account " +
 				"is a mechanism explanation consistent with the number, not an " +

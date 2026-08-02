@@ -289,7 +289,14 @@ func ObservedBehaviour() []claims.Claim {
 			Phase: phase,
 			Data:  dataset,
 			Unit:  "Pearson correlation between resting depth and each of the two flows",
-			Limitations: "The SIGN is forced: arrival intensity is damped by resting " +
+			Limitations: "SEED-FRAGILE, measured 2026-08-02: the -0.05 bound on the " +
+				"arrival side sits 0.001 from the eight-seed range, which reaches " +
+				"-0.051. One more seed could break this claim. The bound was chosen " +
+				"descriptively after measuring a SINGLE seed and should have been set " +
+				"with the spread in view; it is left as recorded rather than widened, " +
+				"because widening a bound to accommodate its own noise is the edit this " +
+				"project refuses. Separately: the SIGN is forced — arrival intensity is " +
+				"damped by resting " +
 				"depth, so a negative correlation is what the config states and finding " +
 				"one is not a discovery. What this records is the magnitude and which " +
 				"flow carries the brake. It is model-internal — no market number appears " +

@@ -1603,6 +1603,74 @@ a longer one would average more and wander less, which is itself worth testing b
 future claim rests on a magnitude.
 
 
+## The model's own seed noise, and the claims it takes down
+
+Measured 2026-08-02 while establishing a yardstick for the partition refactor. Eight
+seeds per config, nothing else changed:
+
+| config | `corr(d,arr)` range | `corr(d,can)` range | `corr(arr,can)` range | drift range |
+|---|---|---|---|---|
+| `lob_churn` | 0.054 | 0.051 | 0.048 | 0.092 |
+| `lob_arrivals` | 0.065 | 0.093 | 0.014 | 0.053 |
+| `lob_churn_recycled` | 0.064 | 0.119 | 0.058 | 0.113 |
+| `lob_persistent` | 0.116 | 0.126 | 0.028 | 0.175 |
+| `lob_damping` | **0.132** | **0.137** | 0.038 | 0.138 |
+
+**The model wanders as much between seeds as the market does between windows** (0.079 /
+0.112 / 0.032, measured the same day). Every model correlation this project has published
+is a single-seed number quoted to three decimals.
+
+### The most fundamental casualty: the calibration's grid selection
+
+The γ sweep chose 0.6 because its `corr(depth, arrivals)` sat **0.021** from the fit
+target. That quantity's eight-seed range is **0.132**. The neighbouring grid points were
+0.061 and 0.098 away — all inside one seed's noise.
+
+**The selection was noise-dominated: a different seed would very likely have chosen a
+different γ.** The out-of-sample failure and the market noise floor were reasons the
+*result* did not generalise. This is a reason the *procedure* could not have worked, and
+it is the third and most basic of the three.
+
+### Verdicts that do not survive their own seed
+
+| claim | bound | 8-seed range | status |
+|---|---|---|---|
+| `depth_stabilisation_moves_the_brake_onto_the_arrival_side` | `d/arr` < −0.05 | −0.115 … **−0.051** | margin **0.001** — one seed from breaking |
+| **Y** (persistent) | `d/arr` < −0.40, pinning a FAILURE | −0.417 … **−0.301** | **most seeds do not overshoot; Y would have PASSED on them** |
+| **AF** (damping) | `arr/can` > +0.85, a PASS | **+0.843** … +0.881 | **fails on several seeds** |
+| **AA** (persistent) | `arr/can` < +0.85, pinning a failure | +0.807 … +0.835 | margin 0.015, but fails on all eight — direction robust |
+| **AC/AD** (damping) | monotone across γ | per-step ≈0.11 vs noise 0.132 | **adjacent-pair ordering not resolvable** |
+
+Every one has been qualified in place rather than withdrawn or rescored. Two deserve
+naming: **AF is a PASS that the model does not reliably achieve**, and **Y is a FAILURE
+the model does not reliably produce** — the seed decided both.
+
+### What survives comfortably
+
+The large-margin results are untouched, and it is worth being explicit about which:
+H's −0.002 against the attrition model's +0.638; T's +0.458 against a band ending at
+−0.01; B's +0.60 against +0.2; V's +0.43 against +0.7. **One-sided bounds with margins of
+0.3 and up are not in question at a seed range of 0.13.**
+
+That is the same lesson the market noise floor gave, from the other side: **bounds with
+wide margins survive; comparisons decided by a tenth do not.** Two independent noise
+measurements now say the same thing about how this project should state results.
+
+### The bound that was set wrongly, and is left wrong
+
+`brakeBound` at −0.05 was chosen descriptively after measuring one seed. With the spread
+in view it should have been set further out. **It is left as recorded rather than
+widened** — widening a bound to accommodate its own noise is exactly the edit this
+project refuses, and the claim now carries the fragility in its limitations instead.
+
+### What this does not establish
+
+Eight seeds give a range, not a standard error. The ranges are for one window length
+(2000 steps) and one settle-in (100 rows); a longer run would average more and wander
+less, which is untested and is the obvious lever if these claims are to be made robust
+rather than annotated.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
