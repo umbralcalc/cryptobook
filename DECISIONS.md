@@ -1540,6 +1540,69 @@ inference confound is untouched: both flows are still inferred from net depth ch
 what moved may be the measurement's behaviour rather than the market's.
 
 
+## The noise floor, measured at last — and it dissolves the regime story
+
+Predictions AL–AO were committed before the windows existed. **AL, AM and AO pass; AN
+fails.** Five windows inside one Sunday morning at ten-minute starts, plus the Saturday
+window ~23 hours earlier; 480 rows each, 0 suspect, 0 gaps. (`nf3_DOGEUSDT` recorded 476
+rows — a four-second short capture with no gaps or suspect rows, so the pre-registered
+exclusion criterion does not apply and window 3 is kept.)
+
+### The number this project never had
+
+**Within one morning, nothing changed but the clock:**
+
+| quantity | within-morning range |
+|---|---|
+| five-symbol mean `corr(depth, arrivals)` | **0.079** |
+| five-symbol mean `corr(depth, cancels)` | **0.112** |
+| five-symbol mean `corr(arrivals, cancels)` | **0.032** |
+
+Every correlation in `CLAIMS.md` and `DECISIONS.md` is quoted to three decimals with
+nothing beside it. This is what belongs beside them.
+
+### The verdicts pass and the conclusion is still negative
+
+AM passes **by 0.008**: its six-window range of 0.155 is 95% of the whole
+Thursday→Saturday gap, reproduced among weekend windows where no day changed. AN fails 3
+of 6 — and one of the three passing is the Saturday reference itself, so of five genuinely
+new windows **two land nearer Thursday than nearer the other weekend window**.
+
+The windows do not group by day. **The out-of-sample failure needs no regime explanation,
+because the gap it turned on is barely larger than what these quantities do between
+windows minutes apart. No weekday study is warranted** — it would be chasing a variable
+that has not been shown to matter.
+
+### Two claims qualified rather than left standing
+
+- **The calibration headline.** `pkg/damping` reported a held-out number landing within
+  **0.011** of the market. That quantity wanders **0.112** between windows ten minutes
+  apart. The agreement was inside the noise by an order of magnitude — a second,
+  independent reason the headline was wrong, alongside the out-of-sample failure.
+- **Prediction M.** Scored on a margin of **0.032** against a co-movement noise floor of
+  **0.032**. Not distinguishable from chance in either direction. Already recorded as a
+  pass whose reasoning is unsupported; now measurably so.
+
+### What survives its own noise floor
+
+**AO: thirty measurements — five symbols × six windows — worst case +0.083 against +0.2.**
+The coupling the model's parameterisation requires is absent everywhere it has ever been
+looked for: seven windows counting Thursday, five instruments, two days. Its margin to the
+bound is 0.117, *larger* than the wander of 0.112.
+
+That distinction is the useful one to carry forward. **This project's one-sided bounds
+survive the noise floor; its magnitude comparisons mostly do not.** Bounds were the right
+form for a claim here and the reason is now quantitative rather than stylistic.
+
+### What this does not establish
+
+Six windows give a range, not a distribution. The within-morning figure understates
+variability, since adjacent windows share market conditions. All six are weekend mornings
+on one venue inside 24 hours, and eight minutes is a window length this project chose —
+a longer one would average more and wander less, which is itself worth testing before any
+future claim rests on a magnitude.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

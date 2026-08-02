@@ -289,7 +289,14 @@ func observedBehaviour() ([]claims.Claim, error) {
 			Data:  dataset,
 			Unit: "Pearson correlation between per-second arrival and cancellation counts, " +
 				"lowest-quote-volume symbol minus BTCUSDT",
-			Limitations: "A failed directional prediction on five points, not a " +
+			Limitations: "QUALIFIED 2026-08-02: the margin this was scored on is 0.032, " +
+				"and pkg/noisefloor measured the five-symbol mean co-movement wandering " +
+				"0.032 between windows ten minutes apart with nothing changed but the " +
+				"clock. The margin is therefore the same size as the noise, and the " +
+				"verdict is not distinguishable from chance in either direction. It was " +
+				"already recorded as a pass whose reasoning is unsupported; it is now " +
+				"measurably so. Separately: a failed directional prediction on five " +
+				"points, not a " +
 				"quantitative relationship — it says the effect I expected is not visible " +
 				"across a 37x liquidity range on Binance spot, not that no such effect " +
 				"exists. All five are USDT majors on one venue; a genuinely illiquid pair " +

@@ -279,7 +279,11 @@ func ObservedBehaviour() []claims.Claim {
 				"this held-out one at +0.035, both having moved by more than 0.14, and " +
 				"the frozen model sits 0.17 away from each. The in-sample agreement " +
 				"below stands as measured; the reading that it was evidence of " +
-				"PREDICTION does not. See pkg/oos. " +
+				"PREDICTION does not. See pkg/oos. AND SEPARATELY: pkg/noisefloor " +
+				"measured this quantity wandering 0.112 between windows ten minutes " +
+				"apart, so agreeing with the market to 0.011 was inside the noise by an " +
+				"order of magnitude and never was the precision it reads as. That is a " +
+				"second, independent reason the headline was wrong. " +
 				"The depth control also missed its own band here: mean depth is 223.0 " +
 				"against the 227.8-235.9 the rule specified.",
 			Thresholds: []claims.Threshold{

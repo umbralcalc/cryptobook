@@ -1583,3 +1583,84 @@ result that has never weakened.
 No model parameter is touched. Nothing is fitted. This block measures the *measurement*,
 not the model — and its result applies to every correlation this project has published,
 retrospectively.
+
+### Scored, 2026-08-02
+
+Five windows, Sunday 2026-08-02, starts 08:12–08:56 UTC, 480 rows each, 0 suspect, 0 gaps.
+One file — `nf3_DOGEUSDT` — recorded 476 rows rather than 480, a four-second short capture
+with no gaps and no suspect rows, so the pre-registered exclusion criterion does not apply
+and window 3 is kept. Declared rather than passed over.
+
+| window | mean `corr(d,arr)` | mean `corr(d,can)` | mean `corr(arr,can)` |
+|---|---|---|---|
+| Sat 08:51 | −0.068 | +0.035 | +0.904 |
+| Sun w1 | −0.117 | −0.044 | +0.946 |
+| Sun w2 | −0.123 | −0.058 | +0.978 |
+| Sun w3 | −0.179 | −0.120 | +0.974 |
+| Sun w4 | −0.099 | −0.008 | +0.949 |
+| Sun w5 | −0.177 | −0.083 | +0.947 |
+
+| | prediction | measured | |
+|---|---|---|---|
+| **AL** | six-window range of `corr(d,arr)` < 0.145 | **0.111** | pass |
+| **AM** | six-window range of `corr(d,can)` < 0.162 | **0.155** | pass, by 0.008 |
+| **AN** | every window nearer Saturday than Thursday | **3 of 6** | **FAIL** |
+| **AO** | `corr(d,can)` < +0.2, all 5 symbols × 6 windows | worst **+0.083** | pass |
+
+#### The deliverable: a measured noise floor
+
+**Within one Sunday morning, with nothing changed but the clock**, the five-symbol means
+span **0.079** (`corr(depth, arrivals)`), **0.112** (`corr(depth, cancels)`) and **0.032**
+(`corr(arrivals, cancels)`). That is the number that should sit beside every correlation
+this project has published, and until now none of them had one.
+
+#### The verdicts pass; the reading does not follow the verdicts
+
+AL and AM pass as written. **AM passes by 0.008** — its range, 0.155, is 95% of the entire
+Thursday→Saturday gap it had to come in under, reproduced among *weekend* windows where no
+day changed at all. Treating that as evidence of stability would be correct by the letter
+of this document and wrong by its spirit.
+
+And **AN fails 3 of 6** — and one of the three that passed is the Saturday reference
+itself, so of five genuinely new windows, **two land nearer Thursday than nearer the other
+weekend window recorded a day earlier.** The windows do not group by day.
+
+The pre-registered row for pass/fail says: *"The windows are individually stable but do not
+group by day, so whatever moved is not a day-type effect. A weekday study would be chasing
+the wrong variable."* The second half stands. The first half — "individually stable" — is
+not supported by margins this thin, and that phrase was written before the sizes were
+known.
+
+**So: no weekday study. The out-of-sample failure needs no regime explanation, because the
+gap it turned on is barely larger than what these quantities do between windows minutes
+apart.**
+
+#### What this costs, retrospectively
+
+Two claims elsewhere have been qualified rather than left standing:
+
+- **The calibration's headline.** `pkg/damping` reported one parameter fitted to one
+  market number putting a held-out number within **0.011** of the market. That quantity
+  wanders **0.112** between windows ten minutes apart, so the agreement was inside the
+  noise by an order of magnitude and was never the precision it reads as. This is a
+  second, independent reason that headline was wrong, alongside the out-of-sample failure.
+- **Prediction M.** Scored on a margin of **0.032**, against a co-movement noise floor
+  measured here at **0.032**. The margin is the same size as the noise, so the verdict is
+  not distinguishable from chance in either direction. It was already recorded as a pass
+  whose reasoning is unsupported; it is now measurably so.
+
+#### What survives, and is now the best-tested result here
+
+**AO: thirty measurements, five symbols × six windows, worst case +0.083 against a +0.2
+ceiling.** The coupling the model's parameterisation requires is absent everywhere it has
+ever been looked for — seven windows counting Thursday, five instruments, two days. Its
+margin to the bound (0.117) is larger than the wander (0.112), so unlike every magnitude
+comparison in this project, **this one survives its own noise floor.**
+
+#### What this does not establish
+
+Six windows give a range, not a distribution — a standard error would need many more. The
+within-morning figure understates variability, since windows ten minutes apart share
+market conditions. All six are weekend mornings on one venue inside 24 hours. And it says
+nothing about other window lengths: eight minutes is a choice this project made, and a
+longer window would average more and wander less.
