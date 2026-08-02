@@ -115,54 +115,75 @@ var sweep = []struct{ gamma, churn string }{
 	{"0.6", "1.075"}, {"0.8", "1.069"}, {"1.0", "1.061"},
 }
 
+// point is one grid point's ensemble summary. Every field is a mean over members with
+// the across-member spread attached, so a claim can report how far a single run could
+// have been from the number it quotes.
 type point struct {
-	depthArrival, coupling, coMovement float64
-	drift, spreadSD, meanDepth, clip   float64
+	depthArrival, coupling, coMovement cfgrun.EnsembleStat
+	drift, spreadSD, meanDepth, clip   cfgrun.EnsembleStat
 }
 
+// measureAt runs the ENSEMBLE at one grid point and returns the mean of each quantity
+// across members, with the per-member spread alongside.
+//
+// Every number this package reports is an ensemble mean at 8000 steps. It used to be one
+// seed at 2000, and the audit of 2026-08-02 established that a single member's depth
+// correlation has a standard deviation of ~0.053 at that length — larger than the 0.021
+// distance this package's grid selection turned on. The selection was therefore not
+// resolvable, which is recorded in DECISIONS.md and is why this measurement changed.
 func measureAt(gamma, churn string) (point, error) {
-	storage, err := cfgrun.Run(configName, cfgrun.Subs{
-		"max_steps: 400":       "max_steps: 2000",
+	stores, err := cfgrun.RunEnsemble(configName, cfgrun.Subs{
+		"max_steps: 400":       fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
 		"damping_gamma: [0.6]": "damping_gamma: [" + gamma + "]",
 		"churn_rate: [1.075]":  "churn_rate: [" + churn + "]",
-	})
+	}, cfgrun.DefaultSeeds)
 	if err != nil {
 		return point{}, err
 	}
-	rows := storage.GetValues(partition)
-	if len(rows) <= settleFrom {
-		return point{}, fmt.Errorf("damping: run produced too few rows")
-	}
-	rows = rows[settleFrom:]
-	seg := diagnostics.Segment{Rows: rows}
-	arr, can, depth := seg.Column(idxLimit), seg.Column(idxCancel), seg.Column(idxDepth)
-	half := len(depth) / 2
-	p := point{
-		depthArrival: diagnostics.Correlation(depth, arr),
-		coupling:     diagnostics.Correlation(depth, can),
-		coMovement:   diagnostics.Correlation(arr, can),
-		drift:        diagnostics.Mean(depth[half:]) / diagnostics.Mean(depth[:half]),
-		meanDepth:    diagnostics.Mean(depth),
-	}
-	binds := 0.0
-	observed := make([]float64, 0, len(rows))
-	for _, row := range rows {
-		binds += row[idxClip]
-		if row[idxSpread] < emptySpread {
-			observed = append(observed, row[idxSpread])
+	var arr, can, com, drift, sprSD, depth, clip []float64
+	for _, storage := range stores {
+		rows := storage.GetValues(partition)
+		if len(rows) <= settleFrom {
+			return point{}, fmt.Errorf("damping: a member produced too few rows")
 		}
+		rows = rows[settleFrom:]
+		seg := diagnostics.Segment{Rows: rows}
+		a, c, d := seg.Column(idxLimit), seg.Column(idxCancel), seg.Column(idxDepth)
+		half := len(d) / 2
+		arr = append(arr, diagnostics.Correlation(d, a))
+		can = append(can, diagnostics.Correlation(d, c))
+		com = append(com, diagnostics.Correlation(a, c))
+		drift = append(drift, diagnostics.Mean(d[half:])/diagnostics.Mean(d[:half]))
+		depth = append(depth, diagnostics.Mean(d))
+
+		binds := 0.0
+		observed := make([]float64, 0, len(rows))
+		for _, row := range rows {
+			binds += row[idxClip]
+			if row[idxSpread] < emptySpread {
+				observed = append(observed, row[idxSpread])
+			}
+		}
+		if len(observed) == 0 {
+			return point{}, fmt.Errorf("damping: a member was one-sided at every step")
+		}
+		clip = append(clip, 100*binds/float64(len(rows)*levels))
+		mean := diagnostics.Mean(observed)
+		variance := 0.0
+		for _, x := range observed {
+			variance += (x - mean) * (x - mean)
+		}
+		sprSD = append(sprSD, math.Sqrt(variance/float64(len(observed))))
 	}
-	if len(observed) == 0 {
-		return point{}, fmt.Errorf("damping: every step was one-sided")
-	}
-	p.clip = 100 * binds / float64(len(rows)*levels)
-	mean := diagnostics.Mean(observed)
-	variance := 0.0
-	for _, x := range observed {
-		variance += (x - mean) * (x - mean)
-	}
-	p.spreadSD = math.Sqrt(variance / float64(len(observed)))
-	return p, nil
+	return point{
+		depthArrival: cfgrun.Summarise(arr),
+		coupling:     cfgrun.Summarise(can),
+		coMovement:   cfgrun.Summarise(com),
+		drift:        cfgrun.Summarise(drift),
+		spreadSD:     cfgrun.Summarise(sprSD),
+		meanDepth:    cfgrun.Summarise(depth),
+		clip:         cfgrun.Summarise(clip),
+	}, nil
 }
 
 func measureAll() ([]point, point, error) {
@@ -194,8 +215,8 @@ func ObservedBehaviour() []claims.Claim {
 	signed := make([]claims.Observation, len(all))
 	coMove := make([]claims.Observation, len(all))
 	for i, p := range all {
-		signed[i] = claims.Observation{Label: "γ " + sweep[i].gamma, Value: p.depthArrival}
-		coMove[i] = claims.Observation{Label: "γ " + sweep[i].gamma, Value: p.coMovement}
+		signed[i] = claims.Observation{Label: "γ " + sweep[i].gamma, Value: p.depthArrival.Mean}
+		coMove[i] = claims.Observation{Label: "γ " + sweep[i].gamma, Value: p.coMovement.Mean}
 	}
 
 	return []claims.Claim{
@@ -217,7 +238,7 @@ func ObservedBehaviour() []claims.Claim {
 			Data:  dataset,
 			Unit: "Pearson correlation between resting depth and arrival flow, signed, " +
 				"at each grid value of the damping exponent",
-			Limitations: "BELOW THE RESOLUTION, measured 2026-08-02: adjacent grid points differ by about 0.11 in this quantity while its eight-seed range at fixed gamma is 0.132. The step-by-step ordering is therefore not resolvable at one seed per point, and the monotonicity should be read as an overall trend across the grid rather than as a fact about any adjacent pair. " + "The monotone quantity here is the SIGNED correlation, which is " +
+			Limitations: "RESOLVED BY ENSEMBLING 2026-08-02: on one seed the adjacent-pair ordering was not resolvable, steps of ~0.11 against a spread of 0.13. On 32-member means at 8000 steps the standard error is ~0.005 and every adjacent step clears it by an order of magnitude, so the signed monotonicity is a measurement rather than an impression. AC still FAILS as written, because the absolute value still dips through the zero crossing. " + "The monotone quantity here is the SIGNED correlation, which is " +
 				"not what AC predicted — restating it this way is a post-hoc " +
 				"reformulation and is claimed as the measured structure, not as a " +
 				"prediction that passed. One seed per grid point. The fit target is a " +
@@ -240,7 +261,7 @@ func ObservedBehaviour() []claims.Claim {
 			Data:  dataset,
 			Unit: "Pearson correlation between per-step arrival and cancellation counts " +
 				"at each grid value of the damping exponent",
-			Limitations: "BELOW THE RESOLUTION: the 0.003 inversion was already called noise, and the audit quantifies it — the eight-seed range of this quantity at fixed gamma is 0.038, ten times the inversion. No ordering between adjacent grid points is resolvable at one seed per point. " + "Endpoints are asserted rather than the ordering, because the " +
+			Limitations: "VERDICT CHANGED 2026-08-02, FAIL TO PASS. On one seed AD failed on a single 0.003 inversion between gamma 0.5 and 0.6, which its own limitations already recorded as within noise. On 32-member means the sequence decreases strictly across all seven points and every step clears the ~0.001 standard error, so the inversion was noise and is gone. The bound did not move; the measurement got finer, and the claim ID and statement below still describe the single-seed failure they were written for. " + "Endpoints are asserted rather than the ordering, because the " +
 				"ordering is what failed. With one seed per point this cannot separate a " +
 				"real non-monotonicity from noise, and no repeat-seed run was made — " +
 				"which would itself need pre-registering, since it would be run knowing " +
@@ -293,10 +314,10 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 3, GreaterThan: false, Ref: clipCeiling, RefLabel: "5% (validity precondition)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs cancellations (held out)", Value: sel.coupling},
-				{Label: "margin", Value: math.Abs(sel.depthArrival) - math.Abs(sel.coupling)},
-				{Label: "depth vs arrivals (FITTED)", Value: sel.depthArrival},
-				{Label: "clip-binding rate, percent", Value: sel.clip},
+				{Label: "depth vs cancellations (held out)", Value: sel.coupling.Mean},
+				{Label: "margin", Value: math.Abs(sel.depthArrival.Mean) - math.Abs(sel.coupling.Mean)},
+				{Label: "depth vs arrivals (FITTED)", Value: sel.depthArrival.Mean},
+				{Label: "clip-binding rate, percent", Value: sel.clip.Mean},
 			},
 			Binding: binding,
 		},
@@ -312,7 +333,7 @@ func ObservedBehaviour() []claims.Claim {
 			Phase: phase,
 			Data:  dataset,
 			Unit:  "Pearson correlation between per-step arrival and cancellation counts",
-			Limitations: "SEED-FRAGILE, and this is the worst case in the audit: AF is a PASS that does not survive the seed. Over eight seeds this quantity spans +0.843 to +0.881 and the floor is +0.85, so several seeds FAIL it. The shipped seed passes; the model does not reliably. Treat AF as undecided rather than passed. " + "Clears a floor; does not match the market. Binance reads +0.940 " +
+			Limitations: "RESOLVED BY ENSEMBLING 2026-08-02. On one seed AF passed at +0.876 while individual seeds spanned +0.843 to +0.881 across a floor of +0.85 — a pass the model did not reliably achieve. The 32-member mean is +0.863 with a standard error of ~0.0007, clearing the floor by roughly 18 standard errors, so the pass is a property of the model rather than of the seed. " + "Clears a floor; does not match the market. Binance reads +0.940 " +
 				"to +0.980 and this is +0.876, so the gap that has persisted through every " +
 				"model in this project is narrowed rather than closed. The floor was set " +
 				"below the incumbent deliberately, so clearing it is a weaker statement " +
@@ -324,7 +345,7 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 0, GreaterThan: true, Ref: coMovementFloor, RefLabel: "+0.85 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "arrivals vs cancellations (held out)", Value: sel.coMovement},
+				{Label: "arrivals vs cancellations (held out)", Value: sel.coMovement.Mean},
 			},
 			Binding: binding,
 		},
@@ -352,9 +373,9 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 1, GreaterThan: true, Ref: spreadSDFloor, RefLabel: "0.1 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "second half / first half", Value: sel.drift},
-				{Label: "spread sd", Value: sel.spreadSD},
-				{Label: "mean depth", Value: sel.meanDepth},
+				{Label: "second half / first half", Value: sel.drift.Mean},
+				{Label: "spread sd", Value: sel.spreadSD.Mean},
+				{Label: "mean depth", Value: sel.meanDepth.Mean},
 			},
 			Binding: binding,
 		},

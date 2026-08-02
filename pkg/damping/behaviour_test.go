@@ -30,26 +30,41 @@ func readConfig(t *testing.T) string {
 	return string(source)
 }
 
-// TestGammaOneReproducesThePersistentModel is the control that makes the whole sweep
-// legitimate. gamma = 1 must be cfg/lob_persistent.yaml exactly, or the
-// reparameterisation changed the model rather than only its spelling — and the sweep
-// would then be exploring a different family from the one whose result motivated it.
-func TestGammaOneReproducesThePersistentModel(t *testing.T) {
-	p, err := measureAt("1.0", "1.05")
+// TestGammaOneIsExactlyThePersistentModel is the control that makes the sweep
+// legitimate: gamma = 1 must be cfg/lob_persistent.yaml, or the pow() reparameterisation
+// changed the model rather than only its spelling, and the sweep would be exploring a
+// different family from the one whose result motivated it.
+//
+// Compared as a SINGLE deterministic run of each at the same seed and length rather than
+// against recorded constants. Same model plus same draws must give bit-identical output,
+// which is a far stronger check than two ensemble means agreeing — and it does not go
+// stale when the ensemble or the run length changes.
+func TestGammaOneIsExactlyThePersistentModel(t *testing.T) {
+	damped, err := cfgrun.Run(configName, cfgrun.Subs{
+		"max_steps: 400":       "max_steps: 2000",
+		"damping_gamma: [0.6]": "damping_gamma: [1.0]",
+		"churn_rate: [1.075]":  "churn_rate: [1.05]",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range []struct {
-		label     string
-		got, want float64
-	}{
-		{"depth vs arrivals", p.depthArrival, -0.4172},
-		{"depth vs cancellations", p.coupling, -0.2856},
-		{"arrivals vs cancellations", p.coMovement, 0.8218},
-	} {
-		if diff := c.got - c.want; diff > 1e-3 || diff < -1e-3 {
-			t.Errorf("%s at gamma=1: got %.4f, cfg/lob_persistent.yaml gives %.4f — the "+
-				"pow() reparameterisation is not exact", c.label, c.got, c.want)
+	persistent, err := cfgrun.Run("lob_persistent.yaml",
+		cfgrun.Subs{"max_steps: 400": "max_steps: 2000"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := damped.GetValues(partition)
+	want := persistent.GetValues("lob_persistent")
+	if len(got) != len(want) {
+		t.Fatalf("row counts differ: %d vs %d", len(got), len(want))
+	}
+	for i := range got {
+		for j := range got[i] {
+			if got[i][j] != want[i][j] {
+				t.Fatalf("row %d column %d: gamma=1 gives %v, cfg/lob_persistent.yaml "+
+					"gives %v — the pow() reparameterisation is not exact",
+					i, j, got[i][j], want[i][j])
+			}
 		}
 	}
 }
@@ -65,7 +80,7 @@ func TestTheSelectionRuleIsTheOnePreRegistered(t *testing.T) {
 	}
 	best, bestGamma := 1e9, ""
 	for i, g := range sweep {
-		d := all[i].depthArrival - fitTarget
+		d := all[i].depthArrival.Mean - fitTarget
 		if d < 0 {
 			d = -d
 		}

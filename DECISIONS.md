@@ -1671,6 +1671,84 @@ less, which is untested and is the obvious lever if these claims are to be made 
 rather than annotated.
 
 
+## Claims move to ensembles — and two of my own measurements were wrong
+
+The seed audit established that single-seed claim values are noise-dominated at the scale
+this project's comparisons are decided. `pkg/cfgrun` now has `RunEnsemble`, and
+`pkg/damping` is migrated: **32 members at 8000 steps**, every reported number an ensemble
+mean.
+
+### Two corrections to the sizing work itself
+
+Both were mine, both from the same mistake — reading a **range** over few samples as if it
+were a spread:
+
+1. **"Noise stops falling above 8000 steps" was wrong.** Measured properly by standard
+   deviation over 64 members, it falls as 1/√n with no saturation: 0.0526 → 0.0244 for a
+   4× length increase (×0.46, against ×0.50 predicted). The apparent saturation was range
+   noise.
+2. **"Ensembling costs 32× the compute" was wrong by two orders of magnitude.** 64 members
+   at 8000 steps take **2.6 seconds**. The engine runs members concurrently. The cost
+   argument against ensembling did not survive being measured.
+
+A range over 8 samples is so noisy that two independent estimates of the same quantity
+came out **0.056 and 0.115**. Report standard deviations.
+
+### Why the engine's ensembler rather than a loop
+
+`simulator.RunSeededEnsemble` varies the **global** seed through the `ConfigGenerator`,
+reseeding every partition coherently. Substituting a partition's `seed:` line — which is
+what a loop would do — varies one partition and leaves others pinned, so members would
+share randomness they should not. The engine also rebuilds a fresh generator per member,
+which is load-bearing: `GenerateConfigs` hands back the same `Iteration` pointers it was
+given, so reusing one generator across concurrent members would share mutable state.
+
+### The sizing, from measurement
+
+At 8000 steps a depth correlation's across-member SD is ~0.024, so an N-member mean has
+standard error 0.024/√N: **32 members → ~0.004**, five times finer than the 0.021 the
+damping calibration tried and failed to resolve.
+
+### Two verdicts changed, and both directions are recorded
+
+| | one seed, 2000 steps | 32 members, 8000 steps |
+|---|---|---|
+| **AD** | **FAIL** — one 0.003 inversion | **PASS** — strictly monotone, every step ≫ SE |
+| **AF** | pass at +0.876, but failing on several seeds | **PASS** at +0.863, ~18 SE clear of its floor |
+| AC | fails as written; ordering unresolvable | fails as written; ordering now resolved |
+
+**The pre-registered bounds were not touched.** What changed is the precision of the
+measurement, decided and justified before any claim was re-scored and for reasons
+independent of any claim's outcome. AD's flip was anticipated in its own limitations,
+which already called the inversion noise — so the ensemble confirms what was written
+rather than rescuing a surprise. AF moved the other way: a pass that was luck is now a
+pass that is real.
+
+Recording both directions matters. **A re-measurement that only ever improves results is
+not a re-measurement.**
+
+### The grid selection is now resolvable
+
+γ=0.6 sits 0.012 from the fit target against γ=0.5's 0.049 — separated by 0.037 at a
+standard error of 0.005. On one seed those points were indistinguishable. This does **not**
+rescue the calibration, which failed out of sample and still does; it means the grid choice
+is a measurement rather than a coin toss.
+
+### A stronger control, as a side effect
+
+`TestGammaOneIsExactlyThePersistentModel` used to compare γ=1 against recorded constants,
+which went stale the moment the measurement changed. It now runs both configs at the same
+seed and length and requires **bit-identical output**. That is a far stronger check of the
+`pow()` reparameterisation, and it cannot go stale.
+
+### Not yet migrated
+
+`pkg/churn`, `pkg/arrivals`, `pkg/recycled` and `pkg/persistent` still report single-seed
+values, and three carry seed-fragility qualifications from the audit — including **Y**,
+a recorded FAILURE that most seeds do not reproduce. The migration is mechanical from
+here; until it is done those claims stand as annotated rather than resolved.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
