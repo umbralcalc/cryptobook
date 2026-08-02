@@ -1504,11 +1504,34 @@ Repeat windows within one morning measure **short-timescale** variability. That 
 This block is therefore a falsification test. It is worth running first because it is the
 cheap half, and because it can make the expensive half unnecessary.
 
-### Protocol
+### Protocol — CORRECTED 2026-08-02 07:46 UTC, before any new window exists
 
-**Five further windows**, each 8 minutes, starting at 10-minute intervals, all five symbols
-concurrently, identical protocol to both previous captures. With the 08:51 window already
-recorded that gives **six Saturday windows** spanning roughly 08:51–10:10 UTC.
+**The paragraph below originally said "six Saturday windows". That was wrong: I wrote it
+believing it was still Saturday, and it is Sunday 2026-08-02.** The correction is made
+here, before a single new row is recorded, and **no numeric bound moves** — AL's 0.145,
+AM's 0.162 and AO's +0.2 are exactly as committed. Only the description of when the
+windows will be taken changes, because it was a statement of fact and it was false.
+
+**Five windows**, each 8 minutes, starting at 10-minute intervals, all five symbols
+concurrently, identical protocol to both previous captures. They will be **Sunday
+2026-08-02, from ~07:50 UTC**. With the Saturday 08:51 window already recorded that gives
+**six weekend windows**: five within one Sunday morning, plus one from the previous
+morning, ~23 hours earlier.
+
+This is **better** for the question than the within-morning design it replaces, and the
+gain should be stated rather than claimed later. The Thursday→Saturday gap is 48 hours;
+five windows inside one morning measure minutes-scale variability and would have needed a
+large extrapolation. This design measures both at once:
+
+- the **within-morning range** over the five Sunday windows — the noise floor, reported
+  as its own number;
+- the **six-window range** including Saturday — a ~23-hour figure, much nearer the
+  timescale of the gap being explained, and the quantity AL and AM are scored on exactly
+  as committed.
+
+The "windows minutes apart share market conditions, so this understates variability"
+caveat therefore applies to the within-morning number and only weakly to the six-window
+one.
 
 Windows minutes apart share market conditions, so this is a **conservative** estimate of
 variability — it will tend to *understate* it. Declared now so a tight result is not
@@ -1533,9 +1556,9 @@ support *any* of the comparisons this project has built on them, including the
 cross-segment replication. That is the outcome with the largest consequences and I do not
 know which way it falls.
 
-**AN — the Saturday windows cluster with each other rather than with Thursday.** The mean
-`corr(depth, cancels)` of **every** one of the six windows is closer to the 08:51 window's
-+0.035 than to Thursday's −0.127.
+**AN — the weekend windows cluster with each other rather than with Thursday.** The mean
+`corr(depth, cancels)` of **every** one of the six windows is closer to the Saturday 08:51
+window's +0.035 than to Thursday's −0.127.
 
 Scored per window, not on an average: one window landing nearer Thursday would show the
 two days are not cleanly separated.
