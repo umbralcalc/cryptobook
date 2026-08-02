@@ -1471,3 +1471,92 @@ two days**, and that a one-parameter calibration to it does not transfer. Two wi
 one venue do not give a distribution for that instability — many more recordings would —
 and nothing here identifies the cause, though Saturday flow being thinner and less
 intermediated than Thursday's is the obvious candidate and is untested.
+
+---
+
+## How unstable are these correlations, really? Fixed before the repeat windows are recorded
+
+**Fixed 2026-08-01, before any window after 08:59 UTC exists.**
+
+### The question, and why it comes before weekday-vs-weekend
+
+The out-of-sample test showed the mean `corr(depth, arrivals)` moving 0.145 and
+`corr(depth, cancels)` 0.162 between Thursday 07:00 and Saturday 08:51. The tempting
+reading is a weekday/weekend regime change. **That reading is unavailable until the
+ordinary variability of these quantities is known**, and this project has never measured
+it: every correlation in `CLAIMS.md` and `DECISIONS.md` is quoted to three decimals with
+no noise floor beside it.
+
+So the primary deliverable of this block is not a prediction at all. It is **a measured
+noise floor for these correlations at the eight-minute-window scale**, against which every
+past and future number in this project should be read.
+
+### What this design can and cannot do — the asymmetry, stated first
+
+Repeat windows within one morning measure **short-timescale** variability. That gives:
+
+- **A refutation.** If windows minutes apart vary as much as Thursday and Saturday did,
+  then the 0.145 shift needs no regime explanation, and there is nothing for a
+  weekday/weekend study to find.
+- **Not a confirmation.** Tight short-timescale windows do *not* establish that the
+  48-hour gap is a regime change, because variance may simply grow with separation.
+
+This block is therefore a falsification test. It is worth running first because it is the
+cheap half, and because it can make the expensive half unnecessary.
+
+### Protocol
+
+**Five further windows**, each 8 minutes, starting at 10-minute intervals, all five symbols
+concurrently, identical protocol to both previous captures. With the 08:51 window already
+recorded that gives **six Saturday windows** spanning roughly 08:51–10:10 UTC.
+
+Windows minutes apart share market conditions, so this is a **conservative** estimate of
+variability — it will tend to *understate* it. Declared now so a tight result is not
+over-read.
+
+Any window with a sequence gap or suspect rows in any symbol is excluded whole, and the
+exclusion reported. Fewer than five usable windows is reported rather than worked around.
+
+### Predictions
+
+**AL — the within-morning spread is smaller than the Thursday→Saturday gap.** The range
+(max − min) of the five-symbol mean `corr(depth, arrivals)` across the six windows is
+**< 0.145**.
+
+**AM — the same for the cancellation side.** The range of the five-symbol mean
+`corr(depth, cancels)` across the six windows is **< 0.162**.
+
+AL and AM are the test. **If either fails, the out-of-sample failure is explained by
+ordinary short-run variability and no regime story is needed** — and, much more
+importantly, it would mean these correlations are not stable enough at this window size to
+support *any* of the comparisons this project has built on them, including the
+cross-segment replication. That is the outcome with the largest consequences and I do not
+know which way it falls.
+
+**AN — the Saturday windows cluster with each other rather than with Thursday.** The mean
+`corr(depth, cancels)` of **every** one of the six windows is closer to the 08:51 window's
++0.035 than to Thursday's −0.127.
+
+Scored per window, not on an average: one window landing nearer Thursday would show the
+two days are not cleanly separated.
+
+**AO — the central conclusion holds in every window on every symbol.** `corr(depth,
+cancels)` < **+0.2** for all five symbols in all six windows — thirty measurements.
+
+The coupling the model's parameterisation requires has been absent in every segment ever
+recorded here. This is the largest test of it the project has run, and it is the one
+result that has never weakened.
+
+### What each outcome means, and what it decides next
+
+| AL/AM | AN | reading and consequence |
+|---|---|---|
+| pass | pass | Short-run variability is materially smaller than the two-day gap, and the days separate. A weekday study becomes worth doing, **and its bounds must then be pre-registered afresh** — nothing here fixes them. |
+| pass | **fail** | The windows are individually stable but do not group by day, so whatever moved is not a day-type effect. A weekday study would be chasing the wrong variable. |
+| **fail** | — | **These correlations are not stable at the eight-minute scale.** No regime explanation is needed for the out-of-sample failure — and every cross-window and cross-segment comparison in this project, including the replication block's bounds, would need restating with a noise floor attached. No weekday study is warranted. This is the outcome that costs the most and is worth the most. |
+
+### What is not being decided here
+
+No model parameter is touched. Nothing is fitted. This block measures the *measurement*,
+not the model — and its result applies to every correlation this project has published,
+retrospectively.
