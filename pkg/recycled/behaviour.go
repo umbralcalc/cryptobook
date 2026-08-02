@@ -31,16 +31,24 @@
 // model first scored was therefore not the model pre-registered.
 //
 // Corrected to the bare form and re-scored: ALL FOUR VERDICTS UNCHANGED, and T's
-// failure is STRONGER at +0.560 against the two-step version's +0.458. That is exactly
+// failure is STRONGER at +0.514 against the two-step version's +0.458. That is exactly
 // what the identity argument predicts — a shorter lag shares MORE with what is resting
 // now — so the accident left an unplanned second data point supporting the explanation.
 // Both numbers are kept on the record in DECISIONS.md.
+//
+// # RE-SCORED ON ENSEMBLES 2026-08-02 — all four verdicts unchanged
+//
+// Every number here was one seed at 2000 steps; it is now a 32-member ensemble mean at
+// 8000 steps (cfgrun.DefaultSeeds). The values moved a little — T +0.560 to +0.514, V
+// +0.432 to +0.418 — and NOT ONE VERDICT CHANGED. Unlike the persistent and damping
+// blocks, this model's results were never close enough to their bounds for the seed to
+// decide them: T fails its band by sign and V misses its floor by 0.28.
 //
 // # The answer is no, and the reason is an identity rather than a rate
 //
 // T, U and V all FAILED; only the survival check W passed. T failed in the direction the
 // pre-registered outcome table did not contain — the coupling came back POSITIVE at
-// +0.560, stronger than the +0.37 of the minimal model this whole line of work started
+// +0.514, stronger than the +0.37 of the minimal model this whole line of work started
 // from.
 //
 // The mechanism is worth stating plainly because it generalises past this config.
@@ -53,7 +61,7 @@
 // arrivals inherits this coupling, whatever the lag or the coefficient. The reasoning
 // that picked a half-weight mixture over a pure lag was sound as far as it went and did
 // not go far enough — it examined what lagging costs (V, correctly predicted in
-// direction, badly underestimated in size: +0.897 to +0.432) without examining what
+// direction, badly underestimated in size: +0.897 to +0.418) without examining what
 // keying to arrivals buys.
 //
 // # What is scored here, and what is not
@@ -101,7 +109,7 @@ const (
 
 	// pinnedCouplingFloor is NOT a pre-registered bound. T's band is recorded above
 	// exactly as it was fixed and is deliberately left unused by any threshold — the
-	// measured +0.560 does not fail that band narrowly, it fails it by sign, so
+	// measured +0.514 does not fail that band narrowly, it fails it by sign, so
 	// asserting against the band would report the failure as a near miss. This floor
 	// pins the failure that actually happened, at a value far below it, so a future
 	// change that fixed the coupling breaks the claim loudly instead of passing.
@@ -120,55 +128,65 @@ const (
 )
 
 // measured holds everything the four predictions are scored on.
+// measured is this model's ensemble summary — 32 members at 8000 steps. See
+// cfgrun.DefaultSeeds.
 type measured struct {
-	coupling, depthArrival, coMovement float64
-	drift, spread, spreadSD, meanDepth float64
+	coupling, depthArrival, coMovement cfgrun.EnsembleStat
+	drift, spread, spreadSD, meanDepth cfgrun.EnsembleStat
 }
 
 func measure() (measured, error) {
-	storage, err := cfgrun.Run(configName, cfgrun.Subs{"max_steps: 400": "max_steps: 2000"})
+	stores, err := cfgrun.RunEnsemble(configName, cfgrun.Subs{
+		"max_steps: 400": fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
+	}, cfgrun.DefaultSeeds)
 	if err != nil {
 		return measured{}, err
 	}
-	rows := storage.GetValues(partition)
-	if len(rows) <= settleFrom {
-		return measured{}, fmt.Errorf("recycled: run produced too few rows")
-	}
-	rows = rows[settleFrom:]
-	segment := diagnostics.Segment{Rows: rows}
-	arrival := segment.Column(idxLimit)
-	cancel := segment.Column(idxCancel)
-	depth := segment.Column(idxDepth)
-
-	// Stationarity by halves rather than a fitted trend, matching pkg/arrivals so W is
-	// measured the same way its predecessor was.
-	half := len(depth) / 2
-	m := measured{
-		coupling:     diagnostics.Correlation(depth, cancel),
-		depthArrival: diagnostics.Correlation(depth, arrival),
-		coMovement:   diagnostics.Correlation(arrival, cancel),
-		drift:        diagnostics.Mean(depth[half:]) / diagnostics.Mean(depth[:half]),
-		meanDepth:    diagnostics.Mean(depth),
-	}
-
-	// One-sided steps carry the sentinel rather than a spread, so they are excluded —
-	// averaging a sentinel would turn "the book broke" into "the spread was wide".
-	observed := make([]float64, 0, len(rows))
-	for _, row := range rows {
-		if row[idxSpread] < emptySpread {
-			observed = append(observed, row[idxSpread])
+	var can, arr, com, drift, sprMean, sprSD, depth []float64
+	for _, storage := range stores {
+		rows := storage.GetValues(partition)
+		if len(rows) <= settleFrom {
+			return measured{}, fmt.Errorf("recycled: a member produced too few rows")
 		}
+		rows = rows[settleFrom:]
+		segment := diagnostics.Segment{Rows: rows}
+		arrival := segment.Column(idxLimit)
+		cancel := segment.Column(idxCancel)
+		d := segment.Column(idxDepth)
+		half := len(d) / 2
+
+		can = append(can, diagnostics.Correlation(d, cancel))
+		arr = append(arr, diagnostics.Correlation(d, arrival))
+		com = append(com, diagnostics.Correlation(arrival, cancel))
+		drift = append(drift, diagnostics.Mean(d[half:])/diagnostics.Mean(d[:half]))
+		depth = append(depth, diagnostics.Mean(d))
+
+		observed := make([]float64, 0, len(rows))
+		for _, row := range rows {
+			if row[idxSpread] < emptySpread {
+				observed = append(observed, row[idxSpread])
+			}
+		}
+		if len(observed) == 0 {
+			return measured{}, fmt.Errorf("recycled: a member was one-sided at every step")
+		}
+		mean := diagnostics.Mean(observed)
+		variance := 0.0
+		for _, x := range observed {
+			variance += (x - mean) * (x - mean)
+		}
+		sprMean = append(sprMean, mean)
+		sprSD = append(sprSD, math.Sqrt(variance/float64(len(observed))))
 	}
-	if len(observed) == 0 {
-		return measured{}, fmt.Errorf("recycled: every step was one-sided")
-	}
-	m.spread = diagnostics.Mean(observed)
-	variance := 0.0
-	for _, x := range observed {
-		variance += (x - m.spread) * (x - m.spread)
-	}
-	m.spreadSD = math.Sqrt(variance / float64(len(observed)))
-	return m, nil
+	return measured{
+		coupling:     cfgrun.Summarise(can),
+		depthArrival: cfgrun.Summarise(arr),
+		coMovement:   cfgrun.Summarise(com),
+		drift:        cfgrun.Summarise(drift),
+		spread:       cfgrun.Summarise(sprMean),
+		spreadSD:     cfgrun.Summarise(sprSD),
+		meanDepth:    cfgrun.Summarise(depth),
+	}, nil
 }
 
 // ObservedBehaviour scores the pre-registered predictions T, U, V and W.
@@ -191,7 +209,7 @@ func ObservedBehaviour() []claims.Claim {
 			ID: "prediction_t_recycling_reintroduces_the_depth_coupling_through_the_book_identity",
 			Statement: "Prediction T, FAILED, and failed in the direction the outcome " +
 				"table did not contain. The pre-registered band was [-0.30, -0.02] and " +
-				"the measured correlation is +0.560 — not a weak version of the target " +
+				"the measured correlation is +0.514 — not a weak version of the target " +
 				"but the OPPOSITE SIGN, and stronger than the +0.37 the minimal model " +
 				"had. The reason is an accounting identity rather than a rate: " +
 				"cancellation was made proportional to arr(t-1), and arr(t-1) is what is " +
@@ -214,17 +232,17 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "+0.2 (the pre-registered band it had to fall far below)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs cancellations", Value: m.coupling},
+				{Label: "depth vs cancellations", Value: m.coupling.Mean},
 			},
 			Binding: binding,
 		},
 		{
 			ID: "prediction_u_the_brake_ordering_inverts_when_cancellation_tracks_recent_arrivals",
 			Statement: "Prediction U, FAILED on the half that was actually being tested. " +
-				"Its forced half held — the inherited arrival damping still reads -0.117 " +
-				"— but the ORDERING inverted: the cancellation side now carries +0.560, " +
-				"nearly five times the arrival side's magnitude and with the wrong sign, so " +
-				"the margin is -0.443 where U required it positive. Every Binance segment has " +
+				"Its forced half held — the inherited arrival damping still reads -0.093 " +
+				"— but the ORDERING inverted: the cancellation side now carries +0.514, " +
+				"about five times the arrival side's magnitude and with the wrong sign, so " +
+				"the margin is -0.421 where U required it positive. Every Binance segment has " +
 				"arrivals as the stronger brake; this model now has cancellation as the " +
 				"stronger ANTI-brake, which is further from the market than the model it " +
 				"was built to improve on.",
@@ -245,9 +263,9 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "0 (U required this POSITIVE; it is not)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs arrivals", Value: m.depthArrival},
-				{Label: "depth vs cancellations", Value: m.coupling},
-				{Label: "margin", Value: math.Abs(m.depthArrival) - math.Abs(m.coupling)},
+				{Label: "depth vs arrivals", Value: m.depthArrival.Mean},
+				{Label: "depth vs cancellations", Value: m.coupling.Mean},
+				{Label: "margin", Value: math.Abs(m.depthArrival.Mean) - math.Abs(m.coupling.Mean)},
 			},
 			Binding: binding,
 		},
@@ -257,7 +275,7 @@ func ObservedBehaviour() []claims.Claim {
 				"out in advance — just not far enough. PREREGISTRATION.md argued a PURE " +
 				"lag would drive contemporaneous co-movement to about zero, because the " +
 				"activity driver is iid per step, and chose a half-weight mixture to " +
-				"avoid that. Half was already too much: +0.897 fell to +0.432, well " +
+				"avoid that. Half was already too much: +0.897 fell to +0.418, well " +
 				"under the +0.7 floor. So the cost of lagging scales faster than its " +
 				"weight, and the model sold its best-matched signature (real: +0.98) to " +
 				"buy a depth signature it did not get.",
@@ -276,15 +294,15 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "+0.7 (the pre-registered floor it had to clear)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "arrivals vs cancellations", Value: m.coMovement},
+				{Label: "arrivals vs cancellations", Value: m.coMovement.Mean},
 			},
 			Binding: binding,
 		},
 		{
 			ID: "prediction_w_the_book_survives_recycled_churn",
 			Statement: "Prediction W, PASSED, and it is the only one that did. The book " +
-				"stays conserved at a drift of 1.020 and the spread keeps a live " +
-				"distribution at 0.615 ticks of standard deviation. Recycling removes " +
+				"stays conserved at a drift of 1.012 and the spread keeps a live " +
+				"distribution at 0.580 ticks of standard deviation. Recycling removes " +
 				"cancellation volume that no longer scales with what is resting, leaving " +
 				"the arrival-side brake to hold the book alone, and it holds — so this " +
 				"mechanism fails on correlations rather than on survival, unlike the " +
@@ -307,9 +325,9 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "0.1 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "second half / first half", Value: m.drift},
-				{Label: "spread sd", Value: m.spreadSD},
-				{Label: "mean depth", Value: m.meanDepth},
+				{Label: "second half / first half", Value: m.drift.Mean},
+				{Label: "spread sd", Value: m.spreadSD.Mean},
+				{Label: "mean depth", Value: m.meanDepth.Mean},
 			},
 			Binding: binding,
 		},

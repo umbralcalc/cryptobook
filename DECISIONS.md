@@ -1749,6 +1749,64 @@ a recorded FAILURE that most seeds do not reproduce. The migration is mechanical
 here; until it is done those claims stand as annotated rather than resolved.
 
 
+## Three more packages on ensembles — and Y becomes a pass
+
+`pkg/persistent`, `pkg/arrivals` and `pkg/recycled` now report 32-member ensemble means at
+8000 steps, joining `pkg/damping`. Bounds untouched throughout.
+
+### Y flips from FAIL to PASS, and that needs to be auditable
+
+| | one seed, 2000 steps | 32 members, 8000 steps |
+|---|---|---|
+| Y `corr(d,arr)` | **−0.417**, outside [−0.40, −0.05] → **FAIL** | **−0.387**, inside → **PASS** |
+| Y `corr(d,can)` | −0.286, inside | −0.257, inside |
+| AA `corr(arr,can)` | +0.822, margin 0.015 → fail, in doubt | +0.816, ~6 SE below floor → **fail, robust** |
+| AB drift | 1.164 — highest of any model here | **0.996** — the single seed was an unlucky draw |
+
+**The persistent-driver block's story changes.** It was recorded as "Y and AA fail, on
+magnitude rather than direction". On ensemble means **only AA fails**: both depth
+correlations land in their bands, in the right order. This model reproduces the paired
+depth signature and misses only the co-movement.
+
+**Why this is not a rescue.** The seed audit measured this quantity's spread and recorded,
+*before any re-scoring*, that most seeds do not overshoot and Y would have passed on them.
+The ensemble confirms a prediction already written down. The bands did not move, the
+measurement changed for reasons independent of any claim, and AA moved the other way —
+from a failure in doubt to a failure that is robust. AB moved too, revealing its
+single-seed drift of 1.164 as an unlucky draw rather than a sign the moving equilibrium
+strains conservation.
+
+Y's margin is 0.013 inside the band against a standard error of 0.004 — three standard
+errors. A pass, not a comfortable one, and its claim says so.
+
+### The brake claim's fragility is resolved
+
+The audit found `depth_stabilisation_moves_the_brake_onto_the_arrival_side` with its −0.05
+bound sitting **0.001** from the single-seed spread. On ensemble means the arrival side is
+−0.077 with a standard error of ~0.002 — about twelve standard errors clear. **The bound
+was not widened**; the measurement got finer, which is the only legitimate way to rescue a
+claim that close to its edge.
+
+`pkg/arrivals`'s H also moved sign, −0.002 to +0.052, while staying far inside its +0.2
+ceiling. A sign change that does not touch a verdict is worth noticing: it is a reminder
+that the near-zero readings this project used to quote to three decimals were never
+distinguishable from zero.
+
+### `pkg/recycled`: nothing moved
+
+T +0.560 → +0.514, V +0.432 → +0.418, **not one verdict changed**. This model's results
+were never close enough to their bounds for the seed to decide them — T fails its band by
+sign and V misses its floor by 0.28. Wide margins are unaffected by a spread of 0.02,
+which is the same lesson the market noise floor gave.
+
+### Still on one seed
+
+`pkg/churn`, `pkg/lob` and `pkg/baseline` share `baseline.Measure`, so migrating them is a
+change to a helper three packages depend on rather than the per-package edit the others
+needed. Left for the follow-up, and flagged here so the corpus is not assumed uniform:
+**four of seven model packages are ensembled, three are not.**
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

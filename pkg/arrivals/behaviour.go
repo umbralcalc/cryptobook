@@ -51,6 +51,17 @@
 // tests say so. Describing them as fitted to anything would be false, and fitting them
 // would need its own pre-registration.
 //
+// # RE-SCORED ON ENSEMBLES 2026-08-02 — all verdicts unchanged, one fragility resolved
+//
+// Every number here is now a 32-member ensemble mean at 8000 steps rather than one seed
+// at 2000. G, H and I are unaffected: H reads +0.052 against a +0.2 ceiling where the
+// single seed gave -0.002, so the sign moved and the verdict did not.
+//
+// The descriptive brake claim WAS fragile — the audit found its -0.05 bound sitting 0.001
+// from the single-seed spread. On ensemble means the arrival side is -0.077 with a
+// standard error of ~0.002, clearing the bound by roughly twelve standard errors, so the
+// claim is now a property of the model rather than of the seed.
+//
 // # A model-internal trade-off, now claimed rather than only noted
 //
 // Cancellation here removes a fraction of RESTING volume, so any depth-stabilising work
@@ -115,59 +126,70 @@ const (
 )
 
 // measured holds everything the four predictions are scored on.
+// measured is this model's ensemble summary — every field a mean over 32 members at
+// 8000 steps, with the across-member spread attached. See cfgrun.DefaultSeeds.
 type measured struct {
-	drift, coupling, depthArrival, coMovement float64
-	spread, spreadSD, meanDepth               float64
-	dispersion                                [2]float64
+	drift, coupling, depthArrival, coMovement cfgrun.EnsembleStat
+	spread, spreadSD, meanDepth               cfgrun.EnsembleStat
+	dispersion                                [2]cfgrun.EnsembleStat
 }
 
 func measure() (measured, error) {
-	storage, err := cfgrun.Run(configName, cfgrun.Subs{"max_steps: 400": "max_steps: 2000"})
+	stores, err := cfgrun.RunEnsemble(configName, cfgrun.Subs{
+		"max_steps: 400": fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
+	}, cfgrun.DefaultSeeds)
 	if err != nil {
 		return measured{}, err
 	}
-	rows := storage.GetValues(partition)
-	if len(rows) <= settleFrom {
-		return measured{}, fmt.Errorf("arrivals: run produced too few rows")
-	}
-	rows = rows[settleFrom:]
-	segment := diagnostics.Segment{Rows: rows}
-	arrival := segment.Column(idxLimit)
-	cancel := segment.Column(idxCancel)
-	depth := segment.Column(idxDepth)
-
-	// Stationarity by halves rather than a fitted trend: robust to the shape of any
-	// drift: robust to the shape of any drift, and the only stationarity statement
-	// left, and it is a statement about conservation rather than about any market.
-	half := len(depth) / 2
-	m := measured{
-		drift:        diagnostics.Mean(depth[half:]) / diagnostics.Mean(depth[:half]),
-		coupling:     diagnostics.Correlation(depth, cancel),
-		depthArrival: diagnostics.Correlation(depth, arrival),
-		coMovement:   diagnostics.Correlation(arrival, cancel),
-		meanDepth:    diagnostics.Mean(depth),
-		dispersion: [2]float64{
-			diagnostics.Dispersion(arrival), diagnostics.Dispersion(cancel)},
-	}
-
-	// One-sided steps carry the sentinel rather than a spread, so they are excluded —
-	// averaging a sentinel would turn "the book broke" into "the spread was wide".
-	observed := make([]float64, 0, len(rows))
-	for _, row := range rows {
-		if row[idxSpread] < emptySpread {
-			observed = append(observed, row[idxSpread])
+	var drift, can, arr, com, sprMean, sprSD, depth, dispA, dispC []float64
+	for _, storage := range stores {
+		rows := storage.GetValues(partition)
+		if len(rows) <= settleFrom {
+			return measured{}, fmt.Errorf("arrivals: a member produced too few rows")
 		}
+		rows = rows[settleFrom:]
+		segment := diagnostics.Segment{Rows: rows}
+		arrival := segment.Column(idxLimit)
+		cancel := segment.Column(idxCancel)
+		d := segment.Column(idxDepth)
+		half := len(d) / 2
+
+		drift = append(drift, diagnostics.Mean(d[half:])/diagnostics.Mean(d[:half]))
+		can = append(can, diagnostics.Correlation(d, cancel))
+		arr = append(arr, diagnostics.Correlation(d, arrival))
+		com = append(com, diagnostics.Correlation(arrival, cancel))
+		depth = append(depth, diagnostics.Mean(d))
+		dispA = append(dispA, diagnostics.Dispersion(arrival))
+		dispC = append(dispC, diagnostics.Dispersion(cancel))
+
+		observed := make([]float64, 0, len(rows))
+		for _, row := range rows {
+			if row[idxSpread] < emptySpread {
+				observed = append(observed, row[idxSpread])
+			}
+		}
+		if len(observed) == 0 {
+			return measured{}, fmt.Errorf("arrivals: a member was one-sided at every step")
+		}
+		mean := diagnostics.Mean(observed)
+		variance := 0.0
+		for _, x := range observed {
+			variance += (x - mean) * (x - mean)
+		}
+		sprMean = append(sprMean, mean)
+		sprSD = append(sprSD, math.Sqrt(variance/float64(len(observed))))
 	}
-	if len(observed) == 0 {
-		return measured{}, fmt.Errorf("arrivals: every step was one-sided")
-	}
-	m.spread = diagnostics.Mean(observed)
-	variance := 0.0
-	for _, x := range observed {
-		variance += (x - m.spread) * (x - m.spread)
-	}
-	m.spreadSD = math.Sqrt(variance / float64(len(observed)))
-	return m, nil
+	return measured{
+		drift:        cfgrun.Summarise(drift),
+		coupling:     cfgrun.Summarise(can),
+		depthArrival: cfgrun.Summarise(arr),
+		coMovement:   cfgrun.Summarise(com),
+		spread:       cfgrun.Summarise(sprMean),
+		spreadSD:     cfgrun.Summarise(sprSD),
+		meanDepth:    cfgrun.Summarise(depth),
+		dispersion: [2]cfgrun.EnsembleStat{
+			cfgrun.Summarise(dispA), cfgrun.Summarise(dispC)},
+	}, nil
 }
 
 // ObservedBehaviour scores the pre-registered predictions E, F and G.
@@ -217,8 +239,8 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 1, GreaterThan: true, Ref: 0.8, RefLabel: "+0.8"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs cancellations", Value: m.coupling},
-				{Label: "arrivals vs cancellations", Value: m.coMovement},
+				{Label: "depth vs cancellations", Value: m.coupling.Mean},
+				{Label: "arrivals vs cancellations", Value: m.coMovement.Mean},
 			},
 			Binding: binding,
 		},
@@ -243,8 +265,8 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "1.3 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "second half / first half", Value: m.drift},
-				{Label: "mean depth", Value: m.meanDepth},
+				{Label: "second half / first half", Value: m.drift.Mean},
+				{Label: "mean depth", Value: m.meanDepth.Mean},
 			},
 			Binding: binding,
 		},
@@ -267,8 +289,8 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "0.1 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "mean spread", Value: m.spread},
-				{Label: "spread sd", Value: m.spreadSD},
+				{Label: "mean spread", Value: m.spread.Mean},
+				{Label: "spread sd", Value: m.spreadSD.Mean},
 			},
 			Binding: binding,
 		},
@@ -289,14 +311,12 @@ func ObservedBehaviour() []claims.Claim {
 			Phase: phase,
 			Data:  dataset,
 			Unit:  "Pearson correlation between resting depth and each of the two flows",
-			Limitations: "SEED-FRAGILE, measured 2026-08-02: the -0.05 bound on the " +
-				"arrival side sits 0.001 from the eight-seed range, which reaches " +
-				"-0.051. One more seed could break this claim. The bound was chosen " +
-				"descriptively after measuring a SINGLE seed and should have been set " +
-				"with the spread in view; it is left as recorded rather than widened, " +
-				"because widening a bound to accommodate its own noise is the edit this " +
-				"project refuses. Separately: the SIGN is forced — arrival intensity is " +
-				"damped by resting " +
+			Limitations: "RESOLVED BY ENSEMBLING 2026-08-02: the audit found this claim's -0.05 " +
+				"bound sitting 0.001 from the single-seed spread, one seed from breaking. " +
+				"The 32-member mean is -0.077 with a standard error of ~0.002, so it clears " +
+				"the bound by about twelve standard errors and the claim now holds as a " +
+				"property of the model. The bound was NOT widened. Separately: the SIGN is " +
+				"forced — arrival intensity is damped by resting " +
 				"depth, so a negative correlation is what the config states and finding " +
 				"one is not a discovery. What this records is the magnitude and which " +
 				"flow carries the brake. It is model-internal — no market number appears " +
@@ -311,8 +331,8 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "-0.05 (descriptive)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs arrivals", Value: m.depthArrival},
-				{Label: "depth vs cancellations", Value: m.coupling},
+				{Label: "depth vs arrivals", Value: m.depthArrival.Mean},
+				{Label: "depth vs cancellations", Value: m.coupling.Mean},
 			},
 			Binding: binding,
 		},
