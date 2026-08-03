@@ -1902,6 +1902,52 @@ about a tool's capability deserves the same adversarial check as a positive resu
 model** — and "I could not find a way" is not the same claim as "there is no way".
 
 
+## Step 3 begins: the driver splits out, and the model is unchanged
+
+`cfg/lob_split.yaml` is `cfg/lob_damping.yaml` with the activity driver lifted into its
+own partition, coupled back through `params_from_upstream` so it is read at the **current**
+step. `cfg/lob_damping.yaml` is untouched and stays pinned — the scored AC–AG claims rest
+on it — so this is a new config, guarded by a test that says so.
+
+### It reproduces the monolith
+
+32-member ensemble means at 8000 steps, both configs:
+
+| | monolith | split | difference |
+|---|---|---|---|
+| `corr(depth, arrivals)` | −0.2244 | −0.2284 | 0.0040 |
+| `corr(depth, cancels)` | −0.1200 | −0.1251 | 0.0051 |
+| `corr(arrivals, cancels)` | +0.8629 | +0.8661 | 0.0032 |
+| depth drift | 1.0018 | 0.9964 | 0.0054 |
+
+A difference of two 32-member means carries a standard error of ~0.006, so all four agree
+within the noise. Pinned as `the_partitioned_model_reproduces_the_monolithic_one`.
+
+**A near-miss worth recording.** At 32 members the co-movement difference read 0.0032
+against a standard error of 0.001 — three standard errors, which looked like a real
+divergence. Re-run at 64 members with a different seed block it fell to 0.0014. **It did
+not replicate**, and reading it as a finding would have been the same over-reading of a
+marginal statistic that produced the false saturation result and the wrongly-filed gap.
+Checking before reporting is the only reason it is not in this document as a discovery.
+
+### Why it cannot be an exact comparison, unlike the pow() control
+
+Splitting gives each partition its own seed and draw order, so no seed makes the two agree
+bit-for-bit. `pkg/damping`'s γ=1 control demands **bit-identical** output because that
+change was genuinely only a spelling; this one is not, and agreement within the noise is
+the strongest available statement. A real difference smaller than ~0.006 would be
+invisible to it, and the claim says so.
+
+### What it establishes, narrowly
+
+That a **contemporaneous** coupling survives separation into partitions — which is exactly
+what the retracted gap claimed was impossible, and this package is the evidence for that
+retraction. Only the driver is split out: flows, book and observables remain one partition.
+The harder case is still ahead, where flows must read the book's PREVIOUS state (row-0
+semantics, free) while the book reads flows' CURRENT output (`params_from_upstream`), with
+`CheckForDeadlock` policing the cycle.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

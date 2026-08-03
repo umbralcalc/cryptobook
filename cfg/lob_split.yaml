@@ -1,0 +1,135 @@
+# THE SAME MODEL AS cfg/lob_damping.yaml, SPLIT ACROSS PARTITIONS.
+#
+# Step 3 of the agreed sequence: decompose the best model into simpler partitions to use
+# the engine's own structure. cfg/lob_damping.yaml stays pinned and unmodified — it is
+# what the scored AC-AG claims are measured against, and splitting changes the seeding, so
+# this is a NEW config rather than an edit.
+#
+# ── WHAT THIS TESTS, AND A CORRECTION IT RESTS ON ─────────────────────────────
+#
+# I filed a gap claiming the expressions tier has no same-step cross-partition read, and
+# concluded this refactor was impossible. That was WRONG and is retracted in DECISIONS.md.
+# There are two mechanisms and they differ:
+#
+#   upstreams: {alias: partition}   in the expressions block  ->  row 0, the PREVIOUS step
+#   params_from_upstream: {...}     on the partition itself   ->  the CURRENT step
+#
+# Both are pure config. This file uses the second for the driver coupling, which is
+# contemporaneous and must not be lagged: a one-step lag on a coupled flow is exactly what
+# cost cfg/lob_churn_recycled.yaml its co-movement, +0.897 to +0.432.
+#
+# ── WHY THE DRIVER IS THE ONLY THING SPLIT OUT SO FAR ─────────────────────────
+#
+# It is the one component with no dependence on the book, so it separates without any
+# lagged read at all. Splitting flows from book is the harder case — flows must read the
+# book's PREVIOUS state (which row-0 semantics give for free, since the monolith's `bid`
+# is already row 0) while book reads flows' CURRENT output. That is a second step, not
+# folded in here, so this file isolates whether the driver coupling survives separation.
+#
+# ── SUCCESS CRITERION ─────────────────────────────────────────────────────────
+#
+# Each partition gets its own seed, so draws differ and the numbers will NOT be identical
+# to the monolith's. The agreed criterion is that ENSEMBLE MEANS agree within the measured
+# spreads — ~0.024 on a depth correlation at 8000 steps, so ~0.005 on a 32-member mean.
+# pkg/split scores exactly that.
+main:
+  partitions:
+  # THE DRIVER, on its own: a self-contained latent AR(1) process that touches nothing
+  # else, which is what makes it the cleanest component to separate first.
+  - name: activity
+    params:
+      persistence: [0.8]
+      activity_shape: [0.222222]
+      activity_rate: [0.0555556]
+    init_state_values: [4.0]
+    state_history_depth: 1
+    seed: 20260810
+  - name: lob_split
+    # THE CONTEMPORANEOUS COUPLING. params_from_upstream forwards the driver's CURRENT
+    # step, so arrivals and churn see activity(t) exactly as in the monolith. An
+    # `upstreams:` alias would give activity(t-1) and quietly change the model.
+    params_from_upstream:
+      activity: {upstream: activity}
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      cancel_rate: [0.0]
+      arrival_scale: [19.0]
+      churn_rate: [1.075]
+      act_ref: [4.0]
+      damping_gamma: [0.6]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2, 0]
+    state_history_depth: 1
+    seed: 20260811
+  expressions:
+  - partition: activity
+    fields:
+    - {name: act_prev}
+    bindings:
+    - {name: act, expr: "shared(persistence * act_prev + (1 - persistence) * gamma(activity_shape, activity_rate))"}
+    outputs:
+    - "act"
+  - partition: lob_split
+    # Indices 0-20 are identical to cfg/lob_damping.yaml's row. prev_activity is gone —
+    # the driver owns it now — so clip_binds moves from 22 to 21 and the row is 22 wide
+    # rather than 23.
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    - {name: clip_binds}
+    bindings:
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(bid, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(ask, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+    - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: churn_ask, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: can_bid, expr: "min(bid, churn_bid + poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, churn_ask + poisson(cancel_rate * ask * dt))"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+    - "sum(where(churn_bid > bid, 1, 0)) + sum(where(churn_ask > ask, 1, 0))"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

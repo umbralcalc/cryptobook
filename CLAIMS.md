@@ -428,6 +428,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** Pearson correlation between resting depth and cancellation flow — minimal 0.39 · priced 0.65 (asserts minimal > +0.3, priced > +0.3)
 - **Does not support:** It establishes that the diagnostic has power, not how much. A weak-but-real coupling in market data could still be missed, so this licenses reading a near-zero result as 'no strong coupling' rather than as 'no coupling at all'.
 
+### `the_partitioned_model_reproduces_the_monolithic_one`
+
+> The activity driver can be lifted into its own partition and coupled back at the SAME step through params_from_upstream, and the model is unchanged: all four scored quantities agree between the monolithic and partitioned configs to within 0.006, against a bound of 0.02 and a difference-of-means standard error of about 0.006. This is the guard that the decomposition is a re-expression rather than a new model — and it is the evidence for a retraction, since a gap was filed claiming the expressions tier cannot read another partition at the current step and this refactor was declared impossible on it.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — the same model expressed two ways, monolithic and partitioned, compared as ensemble means. No market data
+- **Enforced by:** [`TestPartitionedModelMatchesMonolith/the_partitioned_model_reproduces_the_monolithic_one`](pkg/split/behaviour_test.go)
+- **Observed:** absolute difference between the monolithic and partitioned 32-member ensemble means — depth vs arrivals 0.00 · depth vs cancellations 0.01 · arrivals vs cancellations 0.00 · depth drift 0.01 (asserts depth vs arrivals < 0.02 (descriptive), depth vs cancellations < 0.02 (descriptive), arrivals vs cancellations < 0.02 (descriptive), depth drift < 0.02 (descriptive))
+- **Does not support:** NOT an exact comparison and cannot be one: splitting gives each partition its own seed and draw order, so no seed makes the two agree bit-for-bit. Agreement within the noise is therefore the strongest available statement, and a real difference smaller than ~0.006 would be invisible to it. The 0.02 bound is DESCRIPTIVE and post-hoc — the agreed criterion was 'within the measured spreads', not a number. Only the DRIVER is split out here; flows, book and observables remain one partition, so this establishes that a contemporaneous coupling survives separation, not that the whole model decomposes.
+
 ## Phase 4 — Stability outputs
 
 ### `depth_recovery_after_a_liquidity_event_is_faster_when_cancellation_is_faster`
