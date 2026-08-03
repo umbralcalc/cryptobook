@@ -73,6 +73,46 @@ engine belongs. **This is the highest-value candidate for upstream release.**
 
 ---
 
+## 1b. The expressions tier has no same-step cross-partition read
+
+**Severity: high — it decides how every model in this project must be written.**
+
+`upstreams: {alias: partition}` makes another partition readable inside an expressions
+block, but an alias **only ever gives row 0**, which is that partition's *previous
+committed step*. Verified with a two-partition probe rather than reasoned about: at the row
+where the source emits 5, the sink reading it through an alias sees **4**.
+
+There is no spelling in the expressions DSL that reads another partition's *current* step.
+Within-step wiring exists at the iteration tier — `params_from_upstream`, which
+`CheckForDeadlock` exists to police — but that is a Go-implemented iteration, not config.
+
+**What it blocks.** This project's models are one large partition each, and that is forced
+rather than stylistic. Splitting `cfg/lob_damping.yaml` into the natural components —
+activity driver, order flows, book update, observables — would lag every cross-component
+coupling by a step, so arrivals would see `activity(t-1)` where the model requires
+`activity(t)`.
+
+That is not a cosmetic difference here: this repo has already **measured** what a one-step
+lag on a coupled flow costs. `cfg/lob_churn_recycled.yaml` lagged cancellation by one step
+and contemporaneous `corr(arrivals, cancels)` fell from +0.897 to +0.432, failing
+prediction V. A partition split would do the same thing to the driver coupling, and the
+co-movement is the signature these models reproduce best.
+
+**So the decomposition is not behaviour-preserving**, and no arrangement of partitions
+fixes it — the lag is a property of the tier, not of the wiring.
+
+**What would close it.** A same-step read of an upstream partition from the expressions
+tier, subject to the acyclicity `CheckForDeadlock` already enforces for
+`params_from_upstream`. The dependency graph machinery exists; what is missing is the
+expressions tier being able to use it.
+
+**Why this is a gap and not a preference.** Per this file's own rule, an entry must name
+what it blocked. It blocks the refactor that was planned as the next step of this project's
+sequence, and it is the reason every model here is a monolithic partition — which is
+exactly the shape the engine's own conventions discourage.
+
+---
+
 ## 2. `slice` rejects a zero width, which the natural prefix-sum spelling needs
 
 **Severity: low — a sharp edge, with a working idiom.**

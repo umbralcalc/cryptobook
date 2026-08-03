@@ -1852,6 +1852,56 @@ means with spreads, and trust bounds with wide margins rather than comparisons d
 tenth.**
 
 
+## The partition refactor is not behaviour-preserving, and that is the finding
+
+Step 3 of the agreed sequence was to split the best model into more, simpler partitions,
+partly to make better use of the engine's own structure and partly to discover gaps. It
+discovered one immediately, and the gap makes the refactor itself unavailable.
+
+### The measurement
+
+`upstreams: {alias: partition}` makes another partition readable in an expressions block,
+but the alias gives **row 0 — the previous committed step**. A two-partition probe: where
+the source emits 5, the sink reading it through an alias sees **4**. There is no same-step
+cross-partition read in the expressions DSL.
+
+### Why that forecloses the refactor
+
+Splitting `cfg/lob_damping.yaml` into activity driver / flows / book / observables would
+lag every cross-component coupling by one step. Arrivals would see `activity(t-1)` where
+the model requires `activity(t)`.
+
+**This project has already measured what that costs.** `cfg/lob_churn_recycled.yaml` lagged
+one coupled flow by one step and contemporaneous `corr(arrivals, cancels)` fell from +0.897
+to +0.432, failing prediction V. A partition split would do the same to the driver coupling
+— and the co-movement is the signature these models reproduce best.
+
+No arrangement of partitions avoids it: the lag is a property of the tier, not the wiring.
+
+### What this changes
+
+- **The monolithic partition is forced, not stylistic.** Recorded, because the engine's
+  conventions push toward decomposition and a future reader would otherwise take this
+  project's single-partition models for laziness.
+- **STOCHADEX_GAPS.md entry 1b** now carries it, with what would close it: a same-step
+  upstream read from the expressions tier, subject to the acyclicity `CheckForDeadlock`
+  already enforces for `params_from_upstream`. The graph machinery exists; the expressions
+  tier cannot reach it.
+- **The sequence reorders.** Step 3 was to precede step 4 so the upstream release could
+  batch a full gap list. That still holds — and the gap list is now richer, with 1b joining
+  1 as a second high-severity expressiveness gap. Both are engine work under Gate 3.4's
+  resolution, and both are about what forward simulation can *say*.
+
+### What was not established
+
+The probe tests the expressions tier only. `params_from_upstream` at the iteration tier is
+documented as within-step and was not exercised here — a Go-implemented iteration can
+presumably do this, which is precisely why the gap is about *pure config* rather than about
+the engine's capability in general. Whether a partial split that only crosses partitions
+where a one-step lag is harmless would be worth doing is untested and probably not: the
+components that could be split cleanly are the ones with least to gain from splitting.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
