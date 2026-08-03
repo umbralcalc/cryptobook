@@ -59,9 +59,16 @@
 // Re-testing in a regime where churn is a modest fraction of depth needs a FRESH
 // pre-registration, not a re-run of this one. Adjusting rates now and reporting a
 // pass would be exactly the failure the pre-registration exists to prevent.
+// # RE-SCORED ON ENSEMBLES 2026-08-02 — every verdict unchanged
+//
+// Every number here is now a 32-member ensemble mean at 8000 steps rather than one seed.
+// Values moved slightly — A +0.62 to +0.60, C 27.4/12.3 to 26.4/12.0, E's drift 2.72 to
+// 2.90 — and no verdict changed. Like pkg/recycled, this block's results were never close
+// enough to their bounds for the seed to decide them.
 package churn
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/umbralcalc/cryptobook/pkg/baseline"
@@ -104,43 +111,60 @@ var model = baseline.Model{
 // The config default keeps attrition at 0.08, the value in place when the churn
 // ratio was fitted, so the D/E scoring stays reproducible. This variant is reached
 // by substitution rather than by moving the default.
-func noAttrition() (coupling, coMovement, drift, spread, spreadSD float64, err error) {
-	storage, err := cfgrun.Run("lob_churn.yaml", cfgrun.Subs{
-		"max_steps: 400":      "max_steps: 2000",
+func noAttrition() (
+	coupling, coMovement, drift, spread, spreadSD cfgrun.EnsembleStat,
+	err error,
+) {
+	stores, err := cfgrun.RunEnsemble("lob_churn.yaml", cfgrun.Subs{
+		"max_steps: 400":      fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
 		"churn_rate: [3.0]":   "churn_rate: [" + lowChurnRate + "]",
 		"cancel_rate: [0.08]": "cancel_rate: [0.0]",
-	})
+	}, cfgrun.DefaultSeeds)
 	if err != nil {
-		return 0, 0, 0, 0, 0, err
+		return coupling, coMovement, drift, spread, spreadSD, err
 	}
-	rows := storage.GetValues("lob_churn")[100:]
-	segment := diagnostics.Segment{Rows: rows}
-	arrivals := segment.Column(model.Limit)
-	cancels := segment.Column(model.Cancel)
-	depth := segment.Column(model.Depth)
-
-	// Stationarity: a book with a restoring force has this near 1, a drifting one
-	// does not. Comparing halves rather than fitting a trend keeps it robust to the
-	// shape of the drift.
-	half := len(depth) / 2
-	drift = diagnostics.Mean(depth[half:]) / diagnostics.Mean(depth[:half])
-
-	// One-sided steps carry the sentinel, not a spread, so they are excluded.
-	observed := make([]float64, 0, len(rows))
-	for _, row := range rows {
-		if row[20] < 99 {
-			observed = append(observed, row[20])
+	var cs, ms, ds, ss, sds []float64
+	for _, storage := range stores {
+		rows := storage.GetValues("lob_churn")
+		if len(rows) <= 100 {
+			return coupling, coMovement, drift, spread, spreadSD,
+				fmt.Errorf("churn: a member produced too few rows")
 		}
-	}
-	spread = diagnostics.Mean(observed)
-	variance := 0.0
-	for _, x := range observed {
-		variance += (x - spread) * (x - spread)
-	}
-	spreadSD = math.Sqrt(variance / float64(len(observed)))
+		rows = rows[100:]
+		segment := diagnostics.Segment{Rows: rows}
+		arrivals := segment.Column(model.Limit)
+		cancels := segment.Column(model.Cancel)
+		depth := segment.Column(model.Depth)
 
-	return diagnostics.Correlation(depth, cancels),
-		diagnostics.Correlation(arrivals, cancels), drift, spread, spreadSD, nil
+		// Stationarity: a book with a restoring force has this near 1, a drifting one
+		// does not. Comparing halves rather than fitting a trend keeps it robust to the
+		// shape of the drift.
+		half := len(depth) / 2
+		ds = append(ds, diagnostics.Mean(depth[half:])/diagnostics.Mean(depth[:half]))
+		cs = append(cs, diagnostics.Correlation(depth, cancels))
+		ms = append(ms, diagnostics.Correlation(arrivals, cancels))
+
+		// One-sided steps carry the sentinel, not a spread, so they are excluded.
+		observed := make([]float64, 0, len(rows))
+		for _, row := range rows {
+			if row[20] < 99 {
+				observed = append(observed, row[20])
+			}
+		}
+		if len(observed) == 0 {
+			return coupling, coMovement, drift, spread, spreadSD,
+				fmt.Errorf("churn: a member was one-sided at every step")
+		}
+		mean := diagnostics.Mean(observed)
+		variance := 0.0
+		for _, x := range observed {
+			variance += (x - mean) * (x - mean)
+		}
+		ss = append(ss, mean)
+		sds = append(sds, math.Sqrt(variance/float64(len(observed))))
+	}
+	return cfgrun.Summarise(cs), cfgrun.Summarise(ms), cfgrun.Summarise(ds),
+		cfgrun.Summarise(ss), cfgrun.Summarise(sds), nil
 }
 
 // ObservedBehaviour scores the pre-registered predictions.
@@ -172,13 +196,13 @@ func ObservedBehaviour() []claims.Claim {
 				"model was written: coupling two streams through one driver and then " +
 				"reporting that they are coupled is not evidence of anything. It is " +
 				"claimed only so it cannot later be presented as a discovery. It also " +
-				"reaches only +0.62, so it does not even match " +
+				"reaches only +0.60, so it does not even match " +
 				"the magnitude.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: true, Ref: churnFloor, RefLabel: "+0.5 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "arrivals vs cancellations", Value: churn},
+				{Label: "arrivals vs cancellations", Value: churn.Mean},
 			},
 			Binding: binding,
 		},
@@ -208,7 +232,7 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "+0.2 (the pre-registered bound it had to fall below)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs cancellations", Value: coupling},
+				{Label: "depth vs cancellations", Value: coupling.Mean},
 			},
 			Binding: binding,
 		},
@@ -233,9 +257,9 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 1, GreaterThan: true, Ref: dispersionFloor, RefLabel: "1.5 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "arrivals", Value: dispersion[0]},
-				{Label: "cancellations", Value: dispersion[1]},
-				{Label: "market orders", Value: dispersion[2]},
+				{Label: "arrivals", Value: dispersion[0].Mean},
+				{Label: "cancellations", Value: dispersion[1].Mean},
+				{Label: "market orders", Value: dispersion[2].Mean},
 			},
 			Binding: binding,
 		},
@@ -264,8 +288,8 @@ func ObservedBehaviour() []claims.Claim {
 				{ObsIndex: 1, GreaterThan: true, Ref: 0.9, RefLabel: "+0.9"},
 			},
 			Observations: []claims.Observation{
-				{Label: "depth vs cancellations", Value: noAttrCoupling},
-				{Label: "arrivals vs cancellations", Value: noAttrCoMovement},
+				{Label: "depth vs cancellations", Value: noAttrCoupling.Mean},
+				{Label: "arrivals vs cancellations", Value: noAttrCoMovement.Mean},
 			},
 			Binding: binding,
 		},
@@ -294,7 +318,7 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "1.5 (pre-registered; arithmetic predicted ~2.7)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "second half / first half", Value: drift},
+				{Label: "second half / first half", Value: drift.Mean},
 			},
 			Binding: binding,
 		},
@@ -321,8 +345,8 @@ func ObservedBehaviour() []claims.Claim {
 					RefLabel: "0.5 (pre-registered)"},
 			},
 			Observations: []claims.Observation{
-				{Label: "mean spread", Value: spread},
-				{Label: "spread sd", Value: spreadSD},
+				{Label: "mean spread", Value: spread.Mean},
+				{Label: "spread sd", Value: spreadSD.Mean},
 			},
 			Binding: binding,
 		},

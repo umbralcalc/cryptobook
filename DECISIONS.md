@@ -1807,6 +1807,51 @@ needed. Left for the follow-up, and flagged here so the corpus is not assumed un
 **four of seven model packages are ensembled, three are not.**
 
 
+## The ensemble migration completes — all seven model packages
+
+`baseline.Measure` now runs a 32-member ensemble at 8000 steps, which carries `pkg/churn`,
+`pkg/lob` and `pkg/baseline` over together; `pkg/churn`'s local `noAttrition` was
+ensembled with it. **Every model package in the project now reports ensemble means.**
+
+### No verdict changed in this tranche
+
+A +0.62 → +0.60, C 27.4/12.3 → 26.4/12.0, E's drift 2.72 → 2.90, the minimal/priced
+coupling +0.37 → +0.39 and +0.64 → +0.65. Like `pkg/recycled`, these results were never
+close enough to their bounds for the seed to decide them.
+
+### The numbers moved toward theory, which is the best evidence the change was right
+
+`pkg/baseline`'s models draw **independent Poisson streams**, so their dispersions are
+exactly 1 and their arrival/cancellation correlation exactly 0 **by construction**. One
+seed gave 0.96, 0.98 and ±0.04. The ensemble means give **1.00 and 0.00**.
+
+Those single-seed deviations were never findings — they were noise around values the
+construction fixes. It matters here more than anywhere: this package is the synthetic
+**control** the real-market diagnostics are read against, and a control whose own numbers
+wander is a poor yardstick.
+
+### Where the corpus now stands
+
+| | measurement |
+|---|---|
+| 7 model packages | 32-member ensemble means at 8000 steps |
+| `pkg/recovery`, `pkg/windowing` | single seed — inference claims (ESS, posterior width), not correlations |
+| `pkg/crypto`, `pkg/replication`, `pkg/oos`, `pkg/noisefloor` | real data; no seed to vary |
+
+`pkg/recovery` and `pkg/windowing` are deliberately left: their claims are about a
+sampler's behaviour rather than a correlation, they run the macros tier which the engine's
+ensembler does not cover, and they are already the two slowest packages in the suite. If
+their margins ever need defending, that is a separate piece of work with a different
+justification.
+
+### The whole arc, in one line
+
+Two independent noise measurements — the market's 0.079–0.112 between windows, the model's
+0.024–0.053 between seeds — said the same thing, and the corpus now reflects it: **quote
+means with spreads, and trust bounds with wide margins rather than comparisons decided by a
+tenth.**
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for

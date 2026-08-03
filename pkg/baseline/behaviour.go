@@ -36,6 +36,18 @@
 // four now answerable) but are NOT the missing mechanism for Phase 2's failure.
 // Coupled arrival and cancellation — quote churn — remains the only candidate
 // standing, and it is now the one standing alone.
+// # RE-SCORED ON ENSEMBLES 2026-08-02 — and the numbers moved toward theory
+//
+// Every value is now a 32-member ensemble mean at 8000 steps rather than one seed, and the
+// effect is a small vindication of the change. These models draw independent Poisson
+// streams, so their dispersions should be exactly 1 and their arrival/cancellation
+// correlation exactly 0 BY CONSTRUCTION. One seed gave 0.96, 0.98 and +/-0.04. The
+// ensemble means give 1.00 and 0.00.
+//
+// The single-seed deviations were never findings; they were noise around values the
+// construction fixes. That is worth recording because this package's whole job is to be
+// the synthetic control the real-market diagnostics are read against — a control whose own
+// numbers wander is a poor yardstick.
 package baseline
 
 import (
@@ -93,26 +105,52 @@ var models = []Model{
 // into a contradiction.
 
 // Measure runs one model and returns its three diagnostics.
-func Measure(m Model) (coupling, churn float64, dispersion [3]float64, err error) {
-	storage, err := cfgrun.Run(m.Config, cfgrun.Subs{m.Steps: m.LongSteps})
+// Measure runs m as a 32-member ensemble at 8000 steps and returns the mean of each
+// quantity across members, with the across-member spread attached.
+//
+// ENSEMBLED 2026-08-02. This used to be one seed at m.LongSteps. The seed audit of that
+// day measured a single member's depth correlation at a standard deviation of ~0.05, which
+// is the scale several of this project's comparisons were decided at — so single-seed
+// values could not support them. See cfgrun.DefaultSeeds for the sizing.
+//
+// m.LongSteps is now ignored in favour of cfgrun.DefaultSteps, so every model package
+// sharing this helper is measured at one length and the numbers stay comparable across
+// them. Model.LongSteps is kept on the struct because callers still name the substitution
+// target with it.
+func Measure(m Model) (
+	coupling, churn cfgrun.EnsembleStat,
+	dispersion [3]cfgrun.EnsembleStat,
+	err error,
+) {
+	stores, err := cfgrun.RunEnsemble(m.Config, cfgrun.Subs{
+		m.Steps: fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
+	}, cfgrun.DefaultSeeds)
 	if err != nil {
-		return 0, 0, dispersion, err
+		return coupling, churn, dispersion, err
 	}
-	rows := storage.GetValues(m.Partition)
-	if len(rows) <= settleFrom {
-		return 0, 0, dispersion, fmt.Errorf("baseline: %s produced too few rows", m.Label)
+	var couplings, churns, dispA, dispC, dispM []float64
+	for _, storage := range stores {
+		rows := storage.GetValues(m.Partition)
+		if len(rows) <= settleFrom {
+			return coupling, churn, dispersion,
+				fmt.Errorf("baseline: %s produced too few rows", m.Label)
+		}
+		segment := diagnostics.Segment{Rows: rows[settleFrom:]}
+		arrivals := segment.Column(m.Limit)
+		cancels := segment.Column(m.Cancel)
+		market := segment.Column(m.Market)
+		depth := segment.Column(m.Depth)
+		couplings = append(couplings, diagnostics.Correlation(depth, cancels))
+		churns = append(churns, diagnostics.Correlation(arrivals, cancels))
+		dispA = append(dispA, diagnostics.Dispersion(arrivals))
+		dispC = append(dispC, diagnostics.Dispersion(cancels))
+		dispM = append(dispM, diagnostics.Dispersion(market))
 	}
-	segment := diagnostics.Segment{Rows: rows[settleFrom:]}
-	arrivals := segment.Column(m.Limit)
-	cancels := segment.Column(m.Cancel)
-	market := segment.Column(m.Market)
-	depth := segment.Column(m.Depth)
-	return diagnostics.Correlation(depth, cancels),
-		diagnostics.Correlation(arrivals, cancels),
-		[3]float64{
-			diagnostics.Dispersion(arrivals),
-			diagnostics.Dispersion(cancels),
-			diagnostics.Dispersion(market),
+	return cfgrun.Summarise(couplings), cfgrun.Summarise(churns),
+		[3]cfgrun.EnsembleStat{
+			cfgrun.Summarise(dispA),
+			cfgrun.Summarise(dispC),
+			cfgrun.Summarise(dispM),
 		}, nil
 }
 
@@ -139,12 +177,12 @@ func observedBehaviour() ([]claims.Claim, error) {
 		if err != nil {
 			return nil, err
 		}
-		coupling = append(coupling, claims.Observation{Label: m.Label, Value: c})
-		churn = append(churn, claims.Observation{Label: m.Label, Value: k})
+		coupling = append(coupling, claims.Observation{Label: m.Label, Value: c.Mean})
+		churn = append(churn, claims.Observation{Label: m.Label, Value: k.Mean})
 		dispersion = append(dispersion,
-			claims.Observation{Label: m.Label + " arrivals", Value: d[0]},
-			claims.Observation{Label: m.Label + " cancellations", Value: d[1]},
-			claims.Observation{Label: m.Label + " market orders", Value: d[2]})
+			claims.Observation{Label: m.Label + " arrivals", Value: d[0].Mean},
+			claims.Observation{Label: m.Label + " cancellations", Value: d[1].Mean},
+			claims.Observation{Label: m.Label + " market orders", Value: d[2].Mean})
 	}
 
 	above := func(n int, ref float64, label string) []claims.Threshold {

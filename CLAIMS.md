@@ -175,8 +175,8 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — the churn generator, measured with the same code as the real-market diagnostics
 - **Enforced by:** [`TestChurnPredictions/prediction_a_a_shared_driver_couples_arrivals_and_cancellations`](pkg/churn/behaviour_test.go)
-- **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations 0.62 (asserts arrivals vs cancellations > +0.5 (pre-registered))
-- **Does not support:** Near-certain by construction and recorded as such BEFORE the model was written: coupling two streams through one driver and then reporting that they are coupled is not evidence of anything. It is claimed only so it cannot later be presented as a discovery. It also reaches only +0.62, so it does not even match the magnitude.
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts — arrivals vs cancellations 0.60 (asserts arrivals vs cancellations > +0.5 (pre-registered))
+- **Does not support:** Near-certain by construction and recorded as such BEFORE the model was written: coupling two streams through one driver and then reporting that they are coupled is not evidence of anything. It is claimed only so it cannot later be presented as a discovery. It also reaches only +0.60, so it does not even match the magnitude.
 
 ### `prediction_aa_activity_dependent_damping_costs_co_movement`
 
@@ -265,7 +265,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — the churn generator, measured with the same code as the real-market diagnostics
 - **Enforced by:** [`TestChurnPredictions/prediction_c_a_shared_driver_reproduces_real_overdispersion`](pkg/churn/behaviour_test.go)
-- **Observed:** variance / mean of per-step counts (Poisson requires exactly 1) — arrivals 27.43 · cancellations 12.28 · market orders 4.07 (asserts arrivals > 1.5 (pre-registered), cancellations > 1.5 (pre-registered))
+- **Observed:** variance / mean of per-step counts (Poisson requires exactly 1) — arrivals 26.39 · cancellations 12.00 · market orders 3.99 (asserts arrivals > 1.5 (pre-registered), cancellations > 1.5 (pre-registered))
 - **Does not support:** Very weak evidence for a mechanism — many processes are over-dispersed, and no real-market magnitude is claimed. It says a common activity factor is SUFFICIENT for overdispersion, not that it is what real markets do.
 
 ### `prediction_d_removing_attrition_eliminates_the_depth_coupling`
@@ -275,7 +275,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — churn generator at an arbitrary churn_rate of 1.15 with the attrition term removed. Model-internal only: no real-market comparison is made
 - **Enforced by:** [`TestChurnPredictions/prediction_d_removing_attrition_eliminates_the_depth_coupling`](pkg/churn/behaviour_test.go)
-- **Observed:** Pearson correlations at churn_rate 1.15 with cancel_rate 0 — depth vs cancellations 0.01 · arrivals vs cancellations 0.95 (asserts depth vs cancellations < +0.2 (pre-registered), arrivals vs cancellations > +0.9)
+- **Observed:** Pearson correlations at churn_rate 1.15 with cancel_rate 0 — depth vs cancellations -0.00 · arrivals vs cancellations 0.95 (asserts depth vs cancellations < +0.2 (pre-registered), arrivals vs cancellations > +0.9)
 - **Does not support:** This is the prediction that could not fail, and it is claimed only so it cannot be presented as the result. Matching four correlations is worth much less than it sounds given what it cost — see [[prediction_e_removing_attrition_destroys_depth_stationarity]], which is the finding.
 
 ### `prediction_e_removing_attrition_destroys_depth_stationarity`
@@ -285,7 +285,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — churn generator with attrition removed. The stationarity target is conservation of the book (ratio ~1), not a market measurement
 - **Enforced by:** [`TestChurnPredictions/prediction_e_removing_attrition_destroys_depth_stationarity`](pkg/churn/behaviour_test.go)
-- **Observed:** mean resting depth over the second half of the scored window divided by the mean over the first half (a conserved book gives ~1) — second half / first half 2.72 (asserts second half / first half > 1.5 (pre-registered; arithmetic predicted ~2.7))
+- **Observed:** mean resting depth over the second half of the scored window divided by the mean over the first half (a conserved book gives ~1) — second half / first half 2.90 (asserts second half / first half > 1.5 (pre-registered; arithmetic predicted ~2.7))
 - **Does not support:** Measured on one run length; a longer run would drift further, so the ratio is a symptom rather than a calibrated quantity. It also does not prove no depth-independent stabiliser exists — only that this model has none once attrition is gone.
 
 ### `prediction_f_removing_attrition_collapses_the_spread`
@@ -405,7 +405,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — both generators in cfg/, measured with the same code as the real-market diagnostics in pkg/crypto
 - **Enforced by:** [`TestSyntheticDiagnosticBaseline/prices_and_book_walking_do_not_introduce_quote_churn`](pkg/baseline/behaviour_test.go)
-- **Observed:** Pearson correlation between per-step arrival and cancellation counts — minimal 0.04 · priced -0.04 (asserts minimal < +0.2, priced < +0.2)
+- **Observed:** Pearson correlation between per-step arrival and cancellation counts — minimal 0.00 · priced -0.00 (asserts minimal < +0.2, priced < +0.2)
 - **Does not support:** A negative result about a change that was made for a different reason — prices were added for the Spike 4.2 outputs, and it would have been surprising if they had also produced churn. It says the hypothesis is untouched, not that churn is the right answer; nothing here tests whether adding a churn mechanism would reproduce the real diagnostics.
 
 ### `synthetic_counts_are_poisson_dispersed_as_constructed`
@@ -415,7 +415,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — both generators in cfg/, measured with the same code as the real-market diagnostics in pkg/crypto
 - **Enforced by:** [`TestSyntheticDiagnosticBaseline/synthetic_counts_are_poisson_dispersed_as_constructed`](pkg/baseline/behaviour_test.go)
-- **Observed:** variance / mean of per-step counts (Poisson requires exactly 1) — minimal arrivals 0.96 · minimal cancellations 1.19 · minimal market orders 0.98 · priced arrivals 0.92 · priced cancellations 1.65 · priced market orders 4.04 (asserts minimal arrivals > 0.5, minimal arrivals < 5.0, minimal cancellations > 0.5, minimal cancellations < 5.0, minimal market orders > 0.5, minimal market orders < 5.0, priced arrivals > 0.5, priced arrivals < 5.0, priced cancellations > 0.5, priced cancellations < 5.0, priced market orders > 0.5, priced market orders < 5.0)
+- **Observed:** variance / mean of per-step counts (Poisson requires exactly 1) — minimal arrivals 1.00 · minimal cancellations 1.18 · minimal market orders 1.00 · priced arrivals 1.00 · priced cancellations 1.62 · priced market orders 3.92 (asserts minimal arrivals > 0.5, minimal arrivals < 5.0, minimal cancellations > 0.5, minimal cancellations < 5.0, minimal market orders > 0.5, minimal market orders < 5.0, priced arrivals > 0.5, priced arrivals < 5.0, priced cancellations > 0.5, priced cancellations < 5.0, priced market orders > 0.5, priced market orders < 5.0)
 - **Does not support:** The priced model's market-order dispersion sits at the top of the band because marketable orders arrive in fixed-size blocks there, so its counts are a scaled Poisson rather than a Poisson. That is a modelling choice, not a defect, but it means this claim brackets a band rather than asserting exactly 1.
 
 ### `the_depth_coupling_diagnostic_detects_the_coupling_when_it_is_present`
@@ -425,7 +425,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Discharges gate:** 2.2
 - **Data:** synthetic — both generators in cfg/, measured with the same code as the real-market diagnostics in pkg/crypto
 - **Enforced by:** [`TestSyntheticDiagnosticBaseline/the_depth_coupling_diagnostic_detects_the_coupling_when_it_is_present`](pkg/baseline/behaviour_test.go)
-- **Observed:** Pearson correlation between resting depth and cancellation flow — minimal 0.37 · priced 0.64 (asserts minimal > +0.3, priced > +0.3)
+- **Observed:** Pearson correlation between resting depth and cancellation flow — minimal 0.39 · priced 0.65 (asserts minimal > +0.3, priced > +0.3)
 - **Does not support:** It establishes that the diagnostic has power, not how much. A weak-but-real coupling in market data could still be missed, so this licenses reading a near-zero result as 'no strong coupling' rather than as 'no coupling at all'.
 
 ## Phase 4 — Stability outputs
