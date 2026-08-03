@@ -16,15 +16,19 @@ turned out to be my misunderstanding — those get recorded as corrections in
 `DECISIONS.md` instead. An entry that cannot name what it blocked is not a gap, it
 is a preference.
 
-Checked against **v0.13.1**.
+Checked against **v0.14.0**.
 
-## Re-verified in full, 2026-08-02 — method recorded, not just the verdict
+## Re-verified in full, then CLOSED upstream in v0.14.0
 
 Every open entry was re-checked before being taken upstream, and the method is written
 down because two claims in this project were wrong this week for the same reason: a
 mechanism assumed absent because it had not been exercised. A gap entry asserting the
 engine *cannot* do something deserves the same adversarial check as a claim that a model
 *can*.
+
+**Both actionable entries were then fixed upstream in v0.14.0 and are moved to Resolved
+below.** What remains open is entries 3 and 4, neither of which should become an issue.
+The verification table is kept because it is the evidence the fixes were made against.
 
 | entry | verdict | how it was checked |
 |---|---|---|
@@ -33,15 +37,16 @@ engine *cannot* do something deserves the same adversarial check as a claim that
 | **3. no streaming/growing `data:` source** | **confirmed as described** | every source returns `(*simulator.StateTimeStorage, error)`, and so does `RegisterDataSource`'s `build` signature — there is no growing variant to register. The engine websocket sets `OutputFunction` and never reads a message, so it is output-only. `arrow` and `s3` are contributed by the CLI, not in-engine, as the entry says |
 | **4. no data-agreement layer** | **confirmed as described** | zero matches anywhere in `pkg/` for schema negotiation or data agreement; the Postgres table is a fixed `CREATE TABLE IF NOT EXISTS (partition_name, time, state)` |
 
-**Only entries 1 and 2 are actionable upstream.** Entry 3 is recorded as a deliberate
-NON-gap — Gate 3.4 selected the architecture that makes the blocking-source path correct
-rather than a workaround — and entry 4 exists so the next reader does not go looking for a
-layer that was never designed. Neither should become an issue.
+**Only entries 1 and 2 were actionable upstream, and both are now closed.** Entry 3 is a
+deliberate NON-gap — Gate 3.4 selected the architecture that makes the blocking-source path
+correct rather than a workaround — and entry 4 exists so the next reader does not go
+looking for a layer that was never designed. Neither should become an issue.
 
-**Entry 1 is the one that matters.** It is the only gap that has forced a modelling
-decision: order identity is unsayable, so PLAN.md's queue-position stability output cannot
-be answered, and Gate 3.4's resolution places the fix in the engine because a `scan`
-primitive concerns the expressiveness of forward simulation.
+**Entry 1 was the one that mattered**, and it is the reason this file exists in the form it
+does: it was the only gap that ever forced a modelling decision. Order identity was
+unsayable, so PLAN.md's queue-position stability output could not be answered. `scan`
+closes it, and Gate 3.4's resolution is what placed the fix in the engine rather than in
+downstream Go — a `scan` primitive concerns the expressiveness of forward simulation.
 
 ### One entry was filed wrongly and withdrawn, which is why this section exists
 
@@ -51,81 +56,6 @@ was filed and then retracted the same day. `upstreams:` gives row 0, but
 version of this project's best model now uses both, including **both pointed at the same
 upstream partition at once**. See DECISIONS.md. The letter `1b` is left unused rather than
 recycled, so no entry number ever means two things.
-
----
-
-## 1. The expressions DSL has no scan across `each` lanes
-
-**Severity: high — it is the one gap that has forced a modelling decision.**
-
-`each(n, i, expr)` is the DSL's only non-elementwise construct. It binds a lane
-index and runs lanes in order, but `out[i]` is never exposed to the inner
-environment (`pkg/general/expression.go`), so **a lane cannot read earlier lanes of
-its own comprehension**. There is no cumulative fold, and no other construct
-provides one — `sum` and `dot` reduce to a scalar, and there is no `prod`.
-
-This is a deliberate property, not an oversight: `each` is documented as "a bounded
-comprehension with no assignment and no recursion, so an expression still always
-terminates". Any fix has to preserve that.
-
-**What it did NOT block.** A limit-order book sweep — a marketable order consuming
-across price levels — looks like a scan but can be reformulated as prefix-sum plus
-clamp:
-
-```yaml
-- {name: cumsum, expr: "each(6, i, where(i == 0, 0, sum(slice(q, 0, max(i, 1)))))"}
-- {name: taken,  expr: "clamp(sweep_size - cumsum, 0, q)"}
-```
-
-Verified: `q = [3 2 1 4 5 6]` with a sweep of 7 gives `taken = [3 2 1 1 0 0]`. It is
-O(n²) in slices rather than O(n), which is irrelevant at book depth.
-
-**What it DID block: order-level identity.** Modelling a FIFO queue needs
-per-order records and, critically, assigning *k* simultaneous arrivals to the first
-*k* free slots. Each new order must see which slots the previous ones just took.
-That cannot be reformulated as a prefix sum, because what is accumulated is *which
-slots are now taken* rather than a running total — the classic allocation problem.
-
-So this repo's model can have prices, a moving touch and book-walking as data, but
-**not order identity**, and therefore cannot answer PLAN.md's queue-position
-stability output. The alternative is bespoke Go, which would break the property
-that every model here is pure config.
-
-**What would close it.** A fold with a bounded accumulator, e.g.
-`scan(n, i, acc, init, expr)` where lane `i` sees the previous lane's value. It
-keeps termination (still bounded, still no recursion, still no assignment beyond the
-threaded accumulator) and would make allocation, running maxima and true prefix
-operations sayable in O(n).
-
-**Where it belongs, settled 2026-07-31.** This entry used to pose its own resolution as
-an open Invariant A question — bespoke Go downstream, or a primitive in the engine. Gate
-3.4 answered it: the engine owns forward simulation and inference-as-forward-simulation,
-downstream owns the dataset, the calibration loop and the decision layer. A `scan`
-primitive is squarely about **the expressiveness of forward simulation**, so it is engine
-work, and closing it downstream in Go would put domain code where the boundary says the
-engine belongs. **This is the highest-value candidate for upstream release.**
-
----
-
-## 2. `slice` rejects a zero width, which the natural prefix-sum spelling needs
-
-**Severity: low — a sharp edge, with a working idiom.**
-
-`slice(v, from, width)` panics when `width < 1` (`pkg/general/expression.go`). The
-obvious prefix sum `each(n, i, sum(slice(q, 0, i)))` therefore dies on lane 0, where
-the correct answer is simply 0.
-
-It is workable because `where` is lazy inside `each`, so the guarded form never
-evaluates the bad slice:
-
-```yaml
-each(6, i, where(i == 0, 0, sum(slice(q, 0, max(i, 1)))))
-```
-
-Both the `where` guard **and** the `max(i, 1)` are needed — the guard for
-correctness, the `max` because the argument is still parsed and bounds-checked in
-the general case. Worth a line in the DSL documentation, since prefix sums are the
-main reason to reach for `each` at all.
 
 ---
 
@@ -176,6 +106,43 @@ and it is unvalidated beyond index bounds.
 ---
 
 ## Resolved
+
+### The expressions DSL had no scan across `each` lanes — entry 1
+
+**Fixed in v0.14.0**, reported from this project. `scan(count, i, acc, init, expr)` threads
+an accumulator through the lanes: lane `i` sees the previous lane's value, `init` at lane
+0, and the call's value is the last lane's — a fold rather than a map. Crucially **a scan
+lane may be any width**, which is what closes the case that asked for it: the thing carried
+between lanes is *which slots are now taken*, a vector, not a running total.
+
+Verified from config here, on exactly the allocation problem the entry named as blocked —
+assigning *k* simultaneous arrivals to the first *k* free slots:
+
+```yaml
+scan(5, i, acc, concat(fill(5, 0), k),
+     concat(slice(acc, 0, i),
+            where(slice(free, i, 1) * slice(acc, 5, 1) > 0, 1, 0),
+            slice(acc, i + 1, 4 - i),
+            slice(acc, 5, 1) - where(slice(free, i, 1) * slice(acc, 5, 1) > 0, 1, 0)))
+```
+
+`free = [0 1 0 1 1]` with `k = 3` gives `[0 1 0 1 1 0]` — slots 1, 3 and 4 assigned, no
+arrivals left over. **Order identity is therefore expressible as pure config**, and with it
+PLAN.md's queue-position stability output, which Spike 4.2 recorded as *not answerable*.
+
+Note the spelling needs the entry-2 fix too: the last lane's `slice(acc, 5, 0)` is
+zero-width. The two fixes compose, and neither alone would have been enough.
+
+### `slice` rejected a zero width — entry 2
+
+**Fixed in v0.14.0**, reported from this project. A zero width now yields an empty value
+rather than panicking, so the natural prefix-sum spelling `each(n, i, sum(slice(q, 0, i)))`
+no longer dies on lane 0 — and, more importantly, slicing to the end of a vector inside a
+`scan` no longer needs a guard at the final lane.
+
+The guarded idiom the entry documented still works and is left in the shipped configs
+unchanged; nothing was rewritten to use the new behaviour, because rewriting a working
+model to exercise a fix is how a regression gets introduced for no result.
 
 ### `window_data_history_depth` larger than the window silently inverted the likelihood
 
