@@ -18,6 +18,40 @@ is a preference.
 
 Checked against **v0.13.1**.
 
+## Re-verified in full, 2026-08-02 — method recorded, not just the verdict
+
+Every open entry was re-checked before being taken upstream, and the method is written
+down because two claims in this project were wrong this week for the same reason: a
+mechanism assumed absent because it had not been exercised. A gap entry asserting the
+engine *cannot* do something deserves the same adversarial check as a claim that a model
+*can*.
+
+| entry | verdict | how it was checked |
+|---|---|---|
+| **1. no scan across `each` lanes** | **confirmed**, three independent ways | the DSL registry has 30 functions and none is a fold (`scan`/`fold`/`cumsum`/`prod` all absent); `out` is a local Go slice never bound into the lane environment (read at `pkg/general/expression.go`, the `each` case); and the prefix-sum workaround the entry says is *not* blocked returns exactly the documented `[3 2 1 1 0 0]` when run |
+| **2. `slice` rejects a zero width** | **confirmed**, reproduced | running `sum(slice(v, 0, 0))` gives `panic: expression: slice's width must be at least 1` |
+| **3. no streaming/growing `data:` source** | **confirmed as described** | every source returns `(*simulator.StateTimeStorage, error)`, and so does `RegisterDataSource`'s `build` signature — there is no growing variant to register. The engine websocket sets `OutputFunction` and never reads a message, so it is output-only. `arrow` and `s3` are contributed by the CLI, not in-engine, as the entry says |
+| **4. no data-agreement layer** | **confirmed as described** | zero matches anywhere in `pkg/` for schema negotiation or data agreement; the Postgres table is a fixed `CREATE TABLE IF NOT EXISTS (partition_name, time, state)` |
+
+**Only entries 1 and 2 are actionable upstream.** Entry 3 is recorded as a deliberate
+NON-gap — Gate 3.4 selected the architecture that makes the blocking-source path correct
+rather than a workaround — and entry 4 exists so the next reader does not go looking for a
+layer that was never designed. Neither should become an issue.
+
+**Entry 1 is the one that matters.** It is the only gap that has forced a modelling
+decision: order identity is unsayable, so PLAN.md's queue-position stability output cannot
+be answered, and Gate 3.4's resolution places the fix in the engine because a `scan`
+primitive concerns the expressiveness of forward simulation.
+
+### One entry was filed wrongly and withdrawn, which is why this section exists
+
+A high-severity entry 1b — "the expressions tier has no same-step cross-partition read" —
+was filed and then retracted the same day. `upstreams:` gives row 0, but
+`params_from_upstream:` gives the current step, and both are pure config. A four-partition
+version of this project's best model now uses both, including **both pointed at the same
+upstream partition at once**. See DECISIONS.md. The letter `1b` is left unused rather than
+recycled, so no entry number ever means two things.
+
 ---
 
 ## 1. The expressions DSL has no scan across `each` lanes
