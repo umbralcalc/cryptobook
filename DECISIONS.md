@@ -1902,50 +1902,69 @@ about a tool's capability deserves the same adversarial check as a positive resu
 model** — and "I could not find a way" is not the same claim as "there is no way".
 
 
-## Step 3 begins: the driver splits out, and the model is unchanged
+## Step 3 done: the model decomposes three ways, and the model is unchanged
 
-`cfg/lob_split.yaml` is `cfg/lob_damping.yaml` with the activity driver lifted into its
-own partition, coupled back through `params_from_upstream` so it is read at the **current**
-step. `cfg/lob_damping.yaml` is untouched and stays pinned — the scored AC–AG claims rest
-on it — so this is a new config, guarded by a test that says so.
+`cfg/lob_split.yaml` is `cfg/lob_damping.yaml` as three partitions — **driver, flows,
+book** — using both cross-partition mechanisms at once. The monolith is untouched and
+stays pinned; a test asserts that, so the refactor cannot quietly become an edit to the
+config the scored AC–AG claims rest on.
+
+### The dependency structure, and why it is not a cycle
+
+```
+activity ──(current)──> flows ──(current)──> book
+                          ^                   │
+                          └──(previous)───────┘
+```
+
+`flows` needs the resting book to damp arrivals and clip cancellations; `book` needs the
+flows to update. Read naively that is a cycle. It is not, because **the monolith already
+damps arrivals by the previous step's depth** — its `bid` is its own row 0 — so `flows`
+reading `book` through an `upstreams:` alias is not a concession, it is the original
+semantics. Only the flows→book edge is within-step, and `CheckForDeadlock` passes.
+
+Getting any edge backwards would be a *silent model change* rather than an error, so the
+three directions are pinned by a config test rather than left to the results.
 
 ### It reproduces the monolith
 
-32-member ensemble means at 8000 steps, both configs:
+| | monolith | 3-way split | difference | diff SE |
+|---|---|---|---|---|
+| `corr(depth, arrivals)` | −0.2244 | −0.2284 | 0.0039 | ~0.010 |
+| `corr(depth, cancels)` | −0.1200 | −0.1251 | 0.0051 | ~0.010 |
+| `corr(arrivals, cancels)` | +0.8629 | +0.8661 | 0.0031 | ~0.002 |
+| depth drift | 1.0018 | 0.9964 | 0.0054 | ~0.009 |
 
-| | monolith | split | difference |
-|---|---|---|---|
-| `corr(depth, arrivals)` | −0.2244 | −0.2284 | 0.0040 |
-| `corr(depth, cancels)` | −0.1200 | −0.1251 | 0.0051 |
-| `corr(arrivals, cancels)` | +0.8629 | +0.8661 | 0.0032 |
-| depth drift | 1.0018 | 0.9964 | 0.0054 |
+### The flows/book boundary is free, and the reason is worth keeping
 
-A difference of two 32-member means carries a standard error of ~0.006, so all four agree
-within the noise. Pinned as `the_partitioned_model_reproduces_the_monolithic_one`.
+The three-way split gives numbers **identical to a two-way driver-only split, to four
+decimals on all four quantities**. That is not luck: `book` draws no randomness — it is
+deterministic given the flows — so lifting it out cannot change a result. A test now
+forbids a draw appearing in the book partition, because that property is what makes the
+boundary cost nothing.
 
-**A near-miss worth recording.** At 32 members the co-movement difference read 0.0032
-against a standard error of 0.001 — three standard errors, which looked like a real
-divergence. Re-run at 64 members with a different seed block it fell to 0.0014. **It did
-not replicate**, and reading it as a finding would have been the same over-reading of a
-marginal statistic that produced the false saturation result and the wrongly-filed gap.
-Checking before reporting is the only reason it is not in this document as a discovery.
+**Every residual difference from the monolith comes from the driver separation alone**,
+which moves the activity draws onto their own RNG stream. That is unavoidable in any split,
+and bounding it is what the ensemble comparison is for.
 
-### Why it cannot be an exact comparison, unlike the pow() control
+### What was deliberately not attempted
 
-Splitting gives each partition its own seed and draw order, so no seed makes the two agree
-bit-for-bit. `pkg/damping`'s γ=1 control demands **bit-identical** output because that
-change was genuinely only a spelling; this one is not, and agreement within the noise is
-the strongest available statement. A real difference smaller than ~0.006 would be
-invisible to it, and the claim says so.
+A fourth `observables` partition. `depth_start` is the book *before* the update and
+`spread_ticks` is the book *after* it, so it would need both the previous and current step
+of `book` — and whether one partition may reach another by both mechanisms at once is
+untested. The book already holds both, so computing them there avoided relying on an
+unknown. Recorded so the next reader knows it is an open question rather than a settled no.
 
-### What it establishes, narrowly
+### What step 3 was for, and what it actually produced
 
-That a **contemporaneous** coupling survives separation into partitions — which is exactly
-what the retracted gap claimed was impossible, and this package is the evidence for that
-retraction. Only the driver is split out: flows, book and observables remain one partition.
-The harder case is still ahead, where flows must read the book's PREVIOUS state (row-0
-semantics, free) while the book reads flows' CURRENT output (`params_from_upstream`), with
-`CheckForDeadlock` policing the cycle.
+It was to decompose the model and discover gaps. It produced **no new gap** — and it
+retired one, since this is the working counter-example to the entry I filed claiming the
+expressions tier cannot read another partition at the current step.
+
+That is a thinner haul than expected, and the reason is worth stating: the earlier
+prediction was that refactoring a working model surfaces only *ergonomic* gaps while
+capability gaps come from expressing something new. That held. The gap list going into
+step 4 is unchanged at one high-severity entry — the missing `scan`.
 
 
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)

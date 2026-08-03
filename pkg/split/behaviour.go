@@ -2,10 +2,20 @@
 //
 // # What this is for
 //
-// cfg/lob_split.yaml is cfg/lob_damping.yaml with the activity driver lifted into its own
-// partition, coupled back through params_from_upstream so it is read at the CURRENT step.
-// The models are meant to be the same model. This package is the guard on that: it runs
-// both as ensembles and pins the differences.
+// cfg/lob_split.yaml is cfg/lob_damping.yaml decomposed into three partitions — driver,
+// flows, book — and the models are meant to be the same model. This package is the guard
+// on that: it runs both as ensembles and pins the differences.
+//
+// # Where the difference comes from, and where it does not
+//
+// The three-way split gives numbers IDENTICAL to a two-way driver-only split, to four
+// decimals on all four quantities. That is not luck: `book` draws no randomness at all —
+// it is deterministic given the flows — so lifting it out cannot change a result. The
+// flows/book boundary is exactly behaviour-preserving.
+//
+// Every residual difference from the monolith therefore comes from the DRIVER separation,
+// which moves the activity draws onto their own RNG stream and changes the joint sequence.
+// That is unavoidable in any split and is what the ensemble comparison exists to bound.
 //
 // # Why it cannot be an exact comparison
 //
@@ -93,7 +103,7 @@ func measure() (mono, split summary, err error) {
 	if err != nil {
 		return mono, split, err
 	}
-	split, err = measureOne("lob_split.yaml", "lob_split")
+	split, err = measureOne("lob_split.yaml", "book")
 	return mono, split, err
 }
 
@@ -108,13 +118,15 @@ func ObservedBehaviour() []claims.Claim {
 			ID: "the_partitioned_model_reproduces_the_monolithic_one",
 			Statement: "The activity driver can be lifted into its own partition and " +
 				"coupled back at the SAME step through params_from_upstream, and the " +
-				"model is unchanged: all four scored quantities agree between the " +
-				"monolithic and partitioned configs to within 0.006, against a bound of " +
-				"0.02 and a difference-of-means standard error of about 0.006. This is " +
-				"the guard that the decomposition is a re-expression rather than a new " +
-				"model — and it is the evidence for a retraction, since a gap was filed " +
-				"claiming the expressions tier cannot read another partition at the " +
-				"current step and this refactor was declared impossible on it.",
+				"model is unchanged. The model is decomposed into THREE partitions — driver, " +
+				"flows, book — using both cross-partition mechanisms at once: the flows read " +
+				"the driver at the CURRENT step and the book at the PREVIOUS one, and the " +
+				"book reads the flows at the CURRENT step. All four scored quantities agree " +
+				"with the monolith to within 0.006, against a difference-of-means standard " +
+				"error of about the same. This is the guard that the decomposition is a " +
+				"re-expression rather than a new model — and the evidence for a retraction, " +
+				"since a gap was filed claiming the expressions tier cannot read another " +
+				"partition at the current step and this refactor was declared impossible on it.",
 			Gate:  "2.2",
 			Phase: phase,
 			Data:  dataset,
@@ -125,10 +137,13 @@ func ObservedBehaviour() []claims.Claim {
 				"bit-for-bit. Agreement within the noise is therefore the strongest " +
 				"available statement, and a real difference smaller than ~0.006 would be " +
 				"invisible to it. The 0.02 bound is DESCRIPTIVE and post-hoc — the agreed " +
-				"criterion was 'within the measured spreads', not a number. Only the " +
-				"DRIVER is split out here; flows, book and observables remain one " +
-				"partition, so this establishes that a contemporaneous coupling survives " +
-				"separation, not that the whole model decomposes.",
+				"criterion was 'within the measured spreads', not a number. The observables " +
+				"are computed in the book partition rather than a fourth, because " +
+				"depth_start is the book BEFORE the update and spread_ticks is the book " +
+				"AFTER it — whether one partition may reach another by both mechanisms at " +
+				"once is untested and was deliberately not relied on. So this establishes " +
+				"that this model decomposes three ways, not that any model decomposes " +
+				"arbitrarily.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: false, Ref: agreementBound, RefLabel: "0.02 (descriptive)"},
 				{ObsIndex: 1, GreaterThan: false, Ref: agreementBound, RefLabel: "0.02 (descriptive)"},

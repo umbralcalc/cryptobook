@@ -21,27 +21,67 @@ func TestPartitionedModelMatchesMonolith(t *testing.T) {
 	}
 }
 
-// TestTheDriverIsCoupledAtTheSameStep guards the one thing that makes the split a
-// re-expression rather than a different model.
+// TestTheWiringDirectionsAreRight guards the one thing that would make the split a
+// different model rather than a re-expression, silently.
 //
-// `upstreams: {alias: partition}` would give the driver's PREVIOUS step, and a one-step
-// lag on a coupled flow is not a small change here — it is what cost
-// cfg/lob_churn_recycled.yaml its co-movement, +0.897 to +0.432. If this config ever
-// switches mechanism, the numbers would move and this test says why before anyone hunts.
-func TestTheDriverIsCoupledAtTheSameStep(t *testing.T) {
+// Three edges, and two different mechanisms:
+//
+//	activity -> flows   CURRENT step (params_from_upstream). An alias would lag the driver
+//	                    coupling, and a one-step lag on a coupled flow is what cost
+//	                    cfg/lob_churn_recycled.yaml its co-movement, +0.897 to +0.432.
+//	book     -> flows   PREVIOUS step (upstreams alias). The monolith already damps
+//	                    arrivals by the previous step's depth — its `bid` is its own row 0
+//	                    — so this is not a concession, it is the original semantics. It is
+//	                    also what breaks the apparent flows<->book cycle.
+//	flows    -> book    CURRENT step (params_from_upstream). Lagging it would delay every
+//	                    arrival by a step.
+//
+// Getting any of these backwards produces a plausible model with different numbers, which
+// is exactly the failure a config test can catch and a results check cannot.
+func TestTheWiringDirectionsAreRight(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join(cfgrun.ConfigDir(), "lob_split.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(source)
-	if !strings.Contains(text, "params_from_upstream:") ||
-		!strings.Contains(text, "activity: {upstream: activity}") {
-		t.Error("the driver must reach the book partition through params_from_upstream, " +
-			"which is the CURRENT step")
+	for _, required := range []string{
+		"activity: {upstream: activity}", // driver -> flows, current
+		"flow: {upstream: flows}",        // flows -> book, current
+		"upstreams: {book_prev: book}",   // book -> flows, previous
+	} {
+		if !strings.Contains(text, required) {
+			t.Errorf("cfg/lob_split.yaml is missing the wiring %q", required)
+		}
 	}
-	if strings.Contains(text, "upstreams: {act") || strings.Contains(text, "upstreams: {activity") {
-		t.Error("an upstreams alias gives the PREVIOUS step and would lag the driver " +
-			"coupling by one step, which is a different model")
+	// The two edges that must NOT swap mechanism.
+	if strings.Contains(text, "upstreams: {activity") || strings.Contains(text, "upstreams: {flow") {
+		t.Error("the driver and flows must reach their consumers at the CURRENT step; an " +
+			"upstreams alias gives the previous one and is a different model")
+	}
+	if strings.Contains(text, "book_prev: {upstream: book}") {
+		t.Error("flows must read the book at the PREVIOUS step via an upstreams alias — " +
+			"params_from_upstream would make it current and close a cycle")
+	}
+}
+
+// TestTheBookDrawsNoRandomness pins why the flows/book boundary is free.
+//
+// The book is deterministic given the flows, which is why the three-way split reproduces
+// a two-way driver-only split to four decimals: separating a partition that consumes no
+// randomness cannot change a result. If a draw ever appears in the book partition that
+// stops being true, and the agreement claim would start to move for a reason nobody
+// intended.
+func TestTheBookDrawsNoRandomness(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join(cfgrun.ConfigDir(), "lob_split.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	book := string(source)[strings.Index(string(source), "- partition: book"):]
+	for _, draw := range []string{"poisson(", "gamma(", "binomial(", "normal(", "uniform(", "exponential("} {
+		if strings.Contains(book, draw) {
+			t.Errorf("the book partition contains %q — it must stay deterministic given "+
+				"the flows, which is what makes this boundary cost nothing", draw)
+		}
 	}
 }
 

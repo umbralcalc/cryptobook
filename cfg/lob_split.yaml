@@ -1,41 +1,55 @@
-# THE SAME MODEL AS cfg/lob_damping.yaml, SPLIT ACROSS PARTITIONS.
+# THE SAME MODEL AS cfg/lob_damping.yaml, DECOMPOSED INTO THREE PARTITIONS.
 #
-# Step 3 of the agreed sequence: decompose the best model into simpler partitions to use
-# the engine's own structure. cfg/lob_damping.yaml stays pinned and unmodified — it is
-# what the scored AC-AG claims are measured against, and splitting changes the seeding, so
-# this is a NEW config rather than an edit.
+# Step 3 of the agreed sequence. cfg/lob_damping.yaml stays pinned and unmodified — it is
+# what the scored AC-AG claims are measured against — so this is a NEW config, and a test
+# in pkg/split asserts the monolith was not edited instead.
 #
-# ── WHAT THIS TESTS, AND A CORRECTION IT RESTS ON ─────────────────────────────
+# ── THE TWO MECHANISMS, AND A CORRECTION THIS RESTS ON ────────────────────────
 #
 # I filed a gap claiming the expressions tier has no same-step cross-partition read, and
-# concluded this refactor was impossible. That was WRONG and is retracted in DECISIONS.md.
-# There are two mechanisms and they differ:
+# declared this refactor impossible on it. That was WRONG, and is retracted in
+# DECISIONS.md. There are two mechanisms and they differ:
 #
 #   upstreams: {alias: partition}   in the expressions block  ->  row 0, the PREVIOUS step
 #   params_from_upstream: {...}     on the partition itself   ->  the CURRENT step
 #
-# Both are pure config. This file uses the second for the driver coupling, which is
-# contemporaneous and must not be lagged: a one-step lag on a coupled flow is exactly what
-# cost cfg/lob_churn_recycled.yaml its co-movement, +0.897 to +0.432.
+# Both are pure config, and this decomposition needs BOTH — which is what makes it the
+# real test rather than the driver split alone.
 #
-# ── WHY THE DRIVER IS THE ONLY THING SPLIT OUT SO FAR ─────────────────────────
+# ── THE DEPENDENCY STRUCTURE, AND WHY IT IS NOT A CYCLE ───────────────────────
 #
-# It is the one component with no dependence on the book, so it separates without any
-# lagged read at all. Splitting flows from book is the harder case — flows must read the
-# book's PREVIOUS state (which row-0 semantics give for free, since the monolith's `bid`
-# is already row 0) while book reads flows' CURRENT output. That is a second step, not
-# folded in here, so this file isolates whether the driver coupling survives separation.
+#   activity ──(current)──> flows ──(current)──> book
+#                             ^                   │
+#                             └──(previous)───────┘
+#
+# `flows` needs the resting book to damp arrivals and to clip cancellations, and `book`
+# needs the flows to update. Read naively that is a cycle. It is not, because the monolith
+# already damps arrivals by the PREVIOUS step's depth — its `bid` is its own row 0 — so
+# `flows` reading `book` through an `upstreams:` alias is not merely acceptable, it is
+# exactly what the original does. Only the flows->book edge is within-step, and
+# CheckForDeadlock passes.
+#
+# Getting this backwards would be a silent model change, not an error: coupling `flows` to
+# `book` at the current step would remove the one-step delay the damping depends on, and
+# lagging `book` behind `flows` would delay every arrival by a step.
+#
+# ── WHY OBSERVABLES ARE NOT A FOURTH PARTITION ────────────────────────────────
+#
+# depth_start is the book BEFORE the update and spread_ticks is the book AFTER it, so an
+# observables partition would need both the previous and current step of `book`. The book
+# already holds both — its own row 0 and its own bindings — so computing them there is
+# simpler than establishing whether one partition may reach another by both mechanisms at
+# once. That question is untested and is left alone deliberately.
 #
 # ── SUCCESS CRITERION ─────────────────────────────────────────────────────────
 #
-# Each partition gets its own seed, so draws differ and the numbers will NOT be identical
-# to the monolith's. The agreed criterion is that ENSEMBLE MEANS agree within the measured
-# spreads — ~0.024 on a depth correlation at 8000 steps, so ~0.005 on a 32-member mean.
-# pkg/split scores exactly that.
+# Each partition has its own seed and draw order, so no seed makes this agree bit-for-bit
+# with the monolith. The agreed criterion is that ENSEMBLE MEANS agree within the measured
+# spreads — a difference of two 32-member means carries a standard error of ~0.006 on a
+# depth correlation. pkg/split scores exactly that.
 main:
   partitions:
-  # THE DRIVER, on its own: a self-contained latent AR(1) process that touches nothing
-  # else, which is what makes it the cleanest component to separate first.
+  # THE DRIVER. A self-contained latent AR(1) process that touches nothing else.
   - name: activity
     params:
       persistence: [0.8]
@@ -44,10 +58,10 @@ main:
     init_state_values: [4.0]
     state_history_depth: 1
     seed: 20260810
-  - name: lob_split
-    # THE CONTEMPORANEOUS COUPLING. params_from_upstream forwards the driver's CURRENT
-    # step, so arrivals and churn see activity(t) exactly as in the monolith. An
-    # `upstreams:` alias would give activity(t-1) and quietly change the model.
+  # THE FLOWS. Everything drawn from a distribution: arrivals, churn, cancellations and
+  # the marketable order. Reads the driver at the CURRENT step and the book at the
+  # PREVIOUS one.
+  - name: flows
     params_from_upstream:
       activity: {upstream: activity}
     params:
@@ -61,15 +75,30 @@ main:
       market_rate: [1.2]
       market_size: [4.0]
       half: [0.5]
-      empty_spread: [99.0]
       shock_step: [-1.0]
       shock_size: [0.0]
+    init_state_values:
+      [0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0, 0,
+       0, 0, 0]
+    state_history_depth: 1
+    seed: 20260811
+  # THE BOOK. Deterministic given the flows: apply them, walk the marketable order across
+  # levels, and report the observables. Reads the flows at the CURRENT step and its own
+  # previous state as row 0.
+  - name: book
+    params_from_upstream:
+      flow: {upstream: flows}
+    params:
+      empty_spread: [99.0]
     init_state_values:
       [8, 6, 4, 3, 2, 1, 1, 1,
        8, 6, 4, 3, 2, 1, 1, 1,
        0, 0, 0, 52, 2, 0]
     state_history_depth: 1
-    seed: 20260811
+    seed: 20260812
   expressions:
   - partition: activity
     fields:
@@ -78,20 +107,20 @@ main:
     - {name: act, expr: "shared(persistence * act_prev + (1 - persistence) * gamma(activity_shape, activity_rate))"}
     outputs:
     - "act"
-  - partition: lob_split
-    # Indices 0-20 are identical to cfg/lob_damping.yaml's row. prev_activity is gone —
-    # the driver owns it now — so clip_binds moves from 22 to 21 and the row is 22 wide
-    # rather than 23.
+  - partition: flows
+    # The book at its PREVIOUS step, which is what the monolith's `bid` already was.
+    upstreams: {book_prev: book}
     fields:
-    - {name: bid, width: 8}
-    - {name: ask, width: 8}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    - {name: spread_ticks}
-    - {name: clip_binds}
+    - {name: prev_arr_bid, width: 8}
+    - {name: prev_arr_ask, width: 8}
+    - {name: prev_can_bid, width: 8}
+    - {name: prev_can_ask, width: 8}
+    - {name: prev_buy}
+    - {name: prev_sell}
+    - {name: prev_clip}
     bindings:
+    - {name: bid, expr: "slice(book_prev, 0, 8)"}
+    - {name: ask, expr: "slice(book_prev, 8, 8)"}
     - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(bid, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
     - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(ask, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
     - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
@@ -102,6 +131,33 @@ main:
     - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
     - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
     - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+    outputs:
+    - "arr_bid"
+    - "arr_ask"
+    - "can_bid"
+    - "can_ask"
+    - "buy_size"
+    - "sell_size"
+    - "sum(where(churn_bid > bid, 1, 0)) + sum(where(churn_ask > ask, 1, 0))"
+  - partition: book
+    # Indices 0-21 match cfg/lob_damping.yaml's row with prev_activity removed, so
+    # pkg/split reads both configs with the same column constants.
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    - {name: clip_binds}
+    bindings:
+    - {name: arr_bid, expr: "slice(flow, 0, 8)"}
+    - {name: arr_ask, expr: "slice(flow, 8, 8)"}
+    - {name: can_bid, expr: "slice(flow, 16, 8)"}
+    - {name: can_ask, expr: "slice(flow, 24, 8)"}
+    - {name: buy_size, expr: "slice(flow, 32, 1)"}
+    - {name: sell_size, expr: "slice(flow, 33, 1)"}
     - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
     - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
     - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
@@ -126,7 +182,7 @@ main:
     - "sum(hit_bid) + sum(hit_ask)"
     - "sum(bid) + sum(ask)"
     - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
-    - "sum(where(churn_bid > bid, 1, 0)) + sum(where(churn_ask > ask, 1, 0))"
+    - "slice(flow, 34, 1)"
   simulation:
     output_condition: {type: every_step}
     output_function: {type: stdout}
