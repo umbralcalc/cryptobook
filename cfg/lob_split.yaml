@@ -1,4 +1,4 @@
-# THE SAME MODEL AS cfg/lob_damping.yaml, DECOMPOSED INTO THREE PARTITIONS.
+# THE SAME MODEL AS cfg/lob_damping.yaml, DECOMPOSED INTO FOUR PARTITIONS.
 #
 # Step 3 of the agreed sequence. cfg/lob_damping.yaml stays pinned and unmodified — it is
 # what the scored AC-AG claims are measured against — so this is a NEW config, and a test
@@ -18,9 +18,15 @@
 #
 # ── THE DEPENDENCY STRUCTURE, AND WHY IT IS NOT A CYCLE ───────────────────────
 #
-#   activity ──(current)──> flows ──(current)──> book
-#                             ^                   │
-#                             └──(previous)───────┘
+#   activity ──(current)──> flows ──(current)──> book ──(current)──┐
+#                             ^  │                  │               ▼
+#                             │  └────(current)──────┼────────> observables
+#                             └────(previous)────────┘               ▲
+#                                                     (previous)─────┘
+#
+# `observables` reaches `book` BY BOTH MECHANISMS AT ONCE — params_from_upstream for the
+# post-update ladder the spread is read off, an upstreams alias for the pre-update ladder
+# the flows were drawn against. That is allowed, and this config uses it.
 #
 # `flows` needs the resting book to damp arrivals and to clip cancellations, and `book`
 # needs the flows to update. Read naively that is a cycle. It is not, because the monolith
@@ -33,13 +39,22 @@
 # `book` at the current step would remove the one-step delay the damping depends on, and
 # lagging `book` behind `flows` would delay every arrival by a step.
 #
-# ── WHY OBSERVABLES ARE NOT A FOURTH PARTITION ────────────────────────────────
+# ── THE OBSERVABLES PARTITION, AND A SECOND CORRECTION ────────────────────────
 #
-# depth_start is the book BEFORE the update and spread_ticks is the book AFTER it, so an
-# observables partition would need both the previous and current step of `book`. The book
-# already holds both — its own row 0 and its own bindings — so computing them there is
-# simpler than establishing whether one partition may reach another by both mechanisms at
-# once. That question is untested and is left alone deliberately.
+# depth_start is the book BEFORE the update and spread_ticks is the book AFTER it, so this
+# partition needs both the previous and the current step of `book`. An earlier version of
+# this file avoided splitting it out, on the grounds that whether one partition may reach
+# another by both mechanisms at once was untested — which was a guess dressed as caution,
+# and it was wrong. It is allowed. Verified by building it: all four scored quantities are
+# unchanged from the three-partition version to four decimals.
+#
+# ── ONLY THE DRIVER SPLIT COSTS ANYTHING ──────────────────────────────────────
+#
+# Two-way, three-way and four-way splits give IDENTICAL numbers to four decimals, because
+# `book` and `observables` draw no randomness — they are deterministic given the flows.
+# Every difference from the monolith comes from separating the DRIVER, which moves the
+# activity draws onto their own RNG stream. Tests forbid a draw appearing in either
+# deterministic partition, since that property is what makes those boundaries free.
 #
 # ── SUCCESS CRITERION ─────────────────────────────────────────────────────────
 #
@@ -85,20 +100,32 @@ main:
        0, 0, 0]
     state_history_depth: 1
     seed: 20260811
-  # THE BOOK. Deterministic given the flows: apply them, walk the marketable order across
-  # levels, and report the observables. Reads the flows at the CURRENT step and its own
-  # previous state as row 0.
+  # THE BOOK. Deterministic given the flows: apply them and walk the marketable order
+  # across levels. Reads the flows at the CURRENT step and its own previous state as row 0.
   - name: book
     params_from_upstream:
       flow: {upstream: flows}
     params:
-      empty_spread: [99.0]
+      placeholder: [0.0]
     init_state_values:
       [8, 6, 4, 3, 2, 1, 1, 1,
        8, 6, 4, 3, 2, 1, 1, 1,
-       0, 0, 0, 52, 2, 0]
+       0]
     state_history_depth: 1
     seed: 20260812
+  # THE OBSERVABLES. Reads THREE upstreams and by BOTH mechanisms — the book at its
+  # current step for the post-update spread, the book at its previous step for the
+  # pre-update depth, and the flows at their current step for the counts. That a single
+  # partition may reach another partition both ways at once is what this exists to use.
+  - name: observables
+    params_from_upstream:
+      flow: {upstream: flows}
+      book_now: {upstream: book}
+    params:
+      empty_spread: [99.0]
+    init_state_values: [0, 0, 0, 52, 2, 0]
+    state_history_depth: 1
+    seed: 20260813
   expressions:
   - partition: activity
     fields:
@@ -140,17 +167,10 @@ main:
     - "sell_size"
     - "sum(where(churn_bid > bid, 1, 0)) + sum(where(churn_ask > ask, 1, 0))"
   - partition: book
-    # Indices 0-21 match cfg/lob_damping.yaml's row with prev_activity removed, so
-    # pkg/split reads both configs with the same column constants.
     fields:
     - {name: bid, width: 8}
     - {name: ask, width: 8}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    - {name: spread_ticks}
-    - {name: clip_binds}
+    - {name: swept}
     bindings:
     - {name: arr_bid, expr: "slice(flow, 0, 8)"}
     - {name: arr_ask, expr: "slice(flow, 8, 8)"}
@@ -166,8 +186,25 @@ main:
     - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
     - {name: next_bid, expr: "rest_bid - hit_bid"}
     - {name: next_ask, expr: "rest_ask - hit_ask"}
-    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
-    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(hit_bid) + sum(hit_ask)"
+  - partition: observables
+    # book at the PREVIOUS step, for the depth the flows were drawn against.
+    upstreams: {book_prev: book}
+    fields:
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    - {name: clip_binds}
+    bindings:
+    - {name: post_bid, expr: "slice(book_now, 0, 8)"}
+    - {name: post_ask, expr: "slice(book_now, 8, 8)"}
+    - {name: occ_bid, expr: "where(post_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(post_ask > 0, 1, 0)"}
     - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
     - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
     - {name: idx, expr: "each(8, i, i)"}
@@ -175,12 +212,10 @@ main:
     - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
     - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
     outputs:
-    - "next_bid"
-    - "next_ask"
-    - "sum(arr_bid) + sum(arr_ask)"
-    - "sum(can_bid) + sum(can_ask)"
-    - "sum(hit_bid) + sum(hit_ask)"
-    - "sum(bid) + sum(ask)"
+    - "sum(slice(flow, 0, 16))"
+    - "sum(slice(flow, 16, 16))"
+    - "slice(book_now, 16, 1)"
+    - "sum(slice(book_prev, 0, 16))"
     - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
     - "slice(flow, 34, 1)"
   simulation:

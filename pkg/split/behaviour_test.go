@@ -71,15 +71,15 @@ func TestTheWiringDirectionsAreRight(t *testing.T) {
 // randomness cannot change a result. If a draw ever appears in the book partition that
 // stops being true, and the agreement claim would start to move for a reason nobody
 // intended.
-func TestTheBookDrawsNoRandomness(t *testing.T) {
+func TestTheDeterministicPartitionsDrawNoRandomness(t *testing.T) {
 	source, err := os.ReadFile(filepath.Join(cfgrun.ConfigDir(), "lob_split.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	book := string(source)[strings.Index(string(source), "- partition: book"):]
+	deterministic := string(source)[strings.Index(string(source), "- partition: book"):]
 	for _, draw := range []string{"poisson(", "gamma(", "binomial(", "normal(", "uniform(", "exponential("} {
-		if strings.Contains(book, draw) {
-			t.Errorf("the book partition contains %q — it must stay deterministic given "+
+		if strings.Contains(deterministic, draw) {
+			t.Errorf("the book/observables partitions contain %q — both must stay deterministic given "+
 				"the flows, which is what makes this boundary cost nothing", draw)
 		}
 	}

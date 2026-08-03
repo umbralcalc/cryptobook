@@ -1902,69 +1902,69 @@ about a tool's capability deserves the same adversarial check as a positive resu
 model** — and "I could not find a way" is not the same claim as "there is no way".
 
 
-## Step 3 done: the model decomposes three ways, and the model is unchanged
+## Step 3 done: the model decomposes four ways, and the model is unchanged
 
-`cfg/lob_split.yaml` is `cfg/lob_damping.yaml` as three partitions — **driver, flows,
-book** — using both cross-partition mechanisms at once. The monolith is untouched and
-stays pinned; a test asserts that, so the refactor cannot quietly become an edit to the
-config the scored AC–AG claims rest on.
+`cfg/lob_split.yaml` is `cfg/lob_damping.yaml` as four partitions — **driver, flows, book,
+observables**. The monolith is untouched and stays pinned; a test asserts that, so the
+refactor cannot quietly become an edit to the config the scored AC–AG claims rest on.
 
-### The dependency structure, and why it is not a cycle
+### A second thing I got wrong, corrected by the maintainer
+
+The first version stopped at three partitions, with this reasoning recorded in the config:
+an observables partition would need both the previous and current step of `book`, and
+"whether one partition may reach another by both mechanisms at once is untested", so it
+was avoided.
+
+**That was a guess presented as caution, and it was wrong.** It is allowed. `observables`
+now reads `book` through `params_from_upstream` for the post-update ladder the spread comes
+off, and through an `upstreams:` alias for the pre-update ladder the flows were drawn
+against — simultaneously, in one partition.
+
+This is the same failure as the retracted gap: not testing a mechanism and writing down the
+absence of evidence as a property of the tool. The difference is only that this one was
+hedged rather than asserted, which made it cheaper to correct but no better reasoned.
+
+### The dependency structure
 
 ```
-activity ──(current)──> flows ──(current)──> book
-                          ^                   │
-                          └──(previous)───────┘
+activity ──(current)──> flows ──(current)──> book ──(current)──┐
+                          ^  │                 │               ▼
+                          │  └───(current)─────┼──────> observables
+                          └───(previous)───────┘               ▲
+                                                (previous)─────┘
 ```
 
-`flows` needs the resting book to damp arrivals and clip cancellations; `book` needs the
-flows to update. Read naively that is a cycle. It is not, because **the monolith already
-damps arrivals by the previous step's depth** — its `bid` is its own row 0 — so `flows`
-reading `book` through an `upstreams:` alias is not a concession, it is the original
-semantics. Only the flows→book edge is within-step, and `CheckForDeadlock` passes.
+`flows` reads `book` at the **previous** step, which is not a concession — the monolith
+already damps arrivals by the previous step's depth, since its `bid` is its own row 0. That
+is what breaks the apparent flows↔book cycle. `CheckForDeadlock` passes.
 
-Getting any edge backwards would be a *silent model change* rather than an error, so the
-three directions are pinned by a config test rather than left to the results.
+### Only the driver split costs anything
 
-### It reproduces the monolith
+**Two-way, three-way and four-way splits give identical numbers to four decimals on all
+four scored quantities.** `book` and `observables` draw no randomness — both are
+deterministic given the flows — so lifting them out cannot change a result. A test forbids
+a draw appearing in either, because that property is what makes those boundaries free.
 
-| | monolith | 3-way split | difference | diff SE |
+Every difference from the monolith comes from separating the **driver**, which moves the
+activity draws onto their own RNG stream:
+
+| | monolith | 4-way split | difference | diff SE |
 |---|---|---|---|---|
 | `corr(depth, arrivals)` | −0.2244 | −0.2284 | 0.0039 | ~0.010 |
 | `corr(depth, cancels)` | −0.1200 | −0.1251 | 0.0051 | ~0.010 |
 | `corr(arrivals, cancels)` | +0.8629 | +0.8661 | 0.0031 | ~0.002 |
 | depth drift | 1.0018 | 0.9964 | 0.0054 | ~0.009 |
 
-### The flows/book boundary is free, and the reason is worth keeping
+### What step 3 produced
 
-The three-way split gives numbers **identical to a two-way driver-only split, to four
-decimals on all four quantities**. That is not luck: `book` draws no randomness — it is
-deterministic given the flows — so lifting it out cannot change a result. A test now
-forbids a draw appearing in the book partition, because that property is what makes the
-boundary cost nothing.
+**No new gap**, and it retired one — this is the working counter-example to the entry
+claiming the expressions tier cannot read another partition at the current step. The list
+going into step 4 is unchanged at one high-severity entry, the missing `scan`.
 
-**Every residual difference from the monolith comes from the driver separation alone**,
-which moves the activity draws onto their own RNG stream. That is unavoidable in any split,
-and bounding it is what the ensemble comparison is for.
-
-### What was deliberately not attempted
-
-A fourth `observables` partition. `depth_start` is the book *before* the update and
-`spread_ticks` is the book *after* it, so it would need both the previous and current step
-of `book` — and whether one partition may reach another by both mechanisms at once is
-untested. The book already holds both, so computing them there avoided relying on an
-unknown. Recorded so the next reader knows it is an open question rather than a settled no.
-
-### What step 3 was for, and what it actually produced
-
-It was to decompose the model and discover gaps. It produced **no new gap** — and it
-retired one, since this is the working counter-example to the entry I filed claiming the
-expressions tier cannot read another partition at the current step.
-
-That is a thinner haul than expected, and the reason is worth stating: the earlier
-prediction was that refactoring a working model surfaces only *ergonomic* gaps while
-capability gaps come from expressing something new. That held. The gap list going into
-step 4 is unchanged at one high-severity entry — the missing `scan`.
+The earlier prediction explains the thin haul: refactoring a model that already works
+surfaces only *ergonomic* gaps, while capability gaps come from expressing something new.
+What it surfaced instead were two errors of mine about the engine's capabilities, both in
+the same direction — assuming a mechanism absent because I had not exercised it.
 
 
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)

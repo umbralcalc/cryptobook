@@ -2,16 +2,16 @@
 //
 // # What this is for
 //
-// cfg/lob_split.yaml is cfg/lob_damping.yaml decomposed into three partitions — driver,
-// flows, book — and the models are meant to be the same model. This package is the guard
+// cfg/lob_split.yaml is cfg/lob_damping.yaml decomposed into four partitions — driver,
+// flows, book, observables — and the models are meant to be the same model. This package is the guard
 // on that: it runs both as ensembles and pins the differences.
 //
 // # Where the difference comes from, and where it does not
 //
-// The three-way split gives numbers IDENTICAL to a two-way driver-only split, to four
-// decimals on all four quantities. That is not luck: `book` draws no randomness at all —
-// it is deterministic given the flows — so lifting it out cannot change a result. The
-// flows/book boundary is exactly behaviour-preserving.
+// Two-way, three-way and four-way splits give IDENTICAL numbers, to four decimals on all
+// four quantities. That is not luck: `book` and `observables` draw no randomness at all —
+// both are deterministic given the flows — so lifting them out cannot change a result.
+// Those boundaries are exactly behaviour-preserving.
 //
 // Every residual difference from the monolith therefore comes from the DRIVER separation,
 // which moves the activity draws onto their own RNG stream and changes the joint sequence.
@@ -69,6 +69,10 @@ type summary struct {
 }
 
 func measureOne(config, partition string) (summary, error) {
+	return measureOneAt(config, partition, idxLimit, idxCancel, idxDepth)
+}
+
+func measureOneAt(config, partition string, ia, ic, id int) (summary, error) {
 	stores, err := cfgrun.RunEnsemble(config, cfgrun.Subs{
 		"max_steps: 400": fmt.Sprintf("max_steps: %d", cfgrun.DefaultSteps),
 	}, cfgrun.DefaultSeeds)
@@ -83,7 +87,7 @@ func measureOne(config, partition string) (summary, error) {
 		}
 		rows = rows[settleFrom:]
 		seg := diagnostics.Segment{Rows: rows}
-		d, a, c := seg.Column(idxDepth), seg.Column(idxLimit), seg.Column(idxCancel)
+		d, a, c := seg.Column(id), seg.Column(ia), seg.Column(ic)
 		half := len(d) / 2
 		arr = append(arr, diagnostics.Correlation(d, a))
 		can = append(can, diagnostics.Correlation(d, c))
@@ -103,7 +107,7 @@ func measure() (mono, split summary, err error) {
 	if err != nil {
 		return mono, split, err
 	}
-	split, err = measureOne("lob_split.yaml", "book")
+	split, err = measureOneAt("lob_split.yaml", "observables", 0, 1, 3)
 	return mono, split, err
 }
 
@@ -118,10 +122,11 @@ func ObservedBehaviour() []claims.Claim {
 			ID: "the_partitioned_model_reproduces_the_monolithic_one",
 			Statement: "The activity driver can be lifted into its own partition and " +
 				"coupled back at the SAME step through params_from_upstream, and the " +
-				"model is unchanged. The model is decomposed into THREE partitions — driver, " +
-				"flows, book — using both cross-partition mechanisms at once: the flows read " +
-				"the driver at the CURRENT step and the book at the PREVIOUS one, and the " +
-				"book reads the flows at the CURRENT step. All four scored quantities agree " +
+				"model is unchanged. The model is decomposed into FOUR partitions — driver, " +
+				"flows, book, observables — and `observables` reaches `book` BY BOTH " +
+				"MECHANISMS AT ONCE: params_from_upstream for the post-update ladder the " +
+				"spread is read off, an upstreams alias for the pre-update ladder the flows " +
+				"were drawn against. All four scored quantities agree " +
 				"with the monolith to within 0.006, against a difference-of-means standard " +
 				"error of about the same. This is the guard that the decomposition is a " +
 				"re-expression rather than a new model — and the evidence for a retraction, " +
@@ -137,13 +142,10 @@ func ObservedBehaviour() []claims.Claim {
 				"bit-for-bit. Agreement within the noise is therefore the strongest " +
 				"available statement, and a real difference smaller than ~0.006 would be " +
 				"invisible to it. The 0.02 bound is DESCRIPTIVE and post-hoc — the agreed " +
-				"criterion was 'within the measured spreads', not a number. The observables " +
-				"are computed in the book partition rather than a fourth, because " +
-				"depth_start is the book BEFORE the update and spread_ticks is the book " +
-				"AFTER it — whether one partition may reach another by both mechanisms at " +
-				"once is untested and was deliberately not relied on. So this establishes " +
-				"that this model decomposes three ways, not that any model decomposes " +
-				"arbitrarily.",
+				"criterion was 'within the measured spreads', not a number. This establishes " +
+				"that THIS model decomposes four ways, not that any model decomposes " +
+				"arbitrarily — and the four-way agreement is easier than it sounds, since " +
+				"only the driver separation moves a number at all.",
 			Thresholds: []claims.Threshold{
 				{ObsIndex: 0, GreaterThan: false, Ref: agreementBound, RefLabel: "0.02 (descriptive)"},
 				{ObsIndex: 1, GreaterThan: false, Ref: agreementBound, RefLabel: "0.02 (descriptive)"},
