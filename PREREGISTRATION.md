@@ -1718,9 +1718,23 @@ priority: consuming oldest-first is a prefix sum from the old end, the same refo
 the price-level sweep uses. Verified by running a one-level cohort model before this block
 was written.
 
-So `scan` is not used here. **Order identity buys the queue-position stability output, not
-this mechanism** — that is a separate block, and conflating the two would have made this
-one look like it needed an engine release it does not.
+**Order identity buys the queue-position stability output, not this mechanism** — that is
+a separate block, and conflating the two would have made this one look like it needed an
+engine release it does not.
+
+> **Amended 2026-08-02, before the config was run and before any result existed.** This
+> block originally said "`scan` is not used here". At full size the sweep's prefix sum is
+> over 128 slots, and the `each`-of-`sum`-over-slices idiom is O(n²) — about 16k operations
+> per step, which puts a 32-member ensemble into minutes and would make this package the
+> critical path of the suite. `scan` is therefore used **as a prefix-sum primitive**, which
+> is O(n).
+>
+> The substantive claim is unchanged and is the one that matters: **the mechanism does not
+> NEED order identity**, verified by running a one-level cohort model without `scan` before
+> this block was written. What `scan` buys here is speed, not capability. The amendment is
+> recorded rather than made silently because "does not use the new primitive" was a cleaner
+> statement than the truth, and the truth is that it uses it for something other than what
+> it was released for.
 
 ### Validity precondition — the mechanism must actually be operating
 
