@@ -1664,3 +1664,125 @@ within-morning figure understates variability, since windows ten minutes apart s
 market conditions. All six are weekend mornings on one venue inside 24 hours. And it says
 nothing about other window lengths: eight minutes is a choice this project made, and a
 longer window would average more and wander less.
+
+---
+
+## Time-in-queue cancellation — predictions fixed before `cfg/lob_ages.yaml` exists
+
+**Fixed 2026-08-02, before the config is written and before any age-structured model has
+been run.**
+
+### The question, and why it is the complement of the one that failed
+
+Four mechanisms have been eliminated. The sharpest thing the failures produced was an
+identity: **any cancellation rule keyed to RECENT arrivals inherits a positive depth
+coupling**, because recent arrivals *are* current depth. That killed recycled churn at
++0.514 and it kills the whole family, whatever the lag or coefficient.
+
+Time-in-queue with a **rising** hazard is the complement of that rule. It weights
+cancellation toward the OLDEST resting volume, not the newest. A burst of arrivals then
+raises depth while adding low-hazard volume, so cancellation does not rise with it; the
+cohort cancels later, when depth has already moved on.
+
+**The identity argument does not settle which way this comes out**, because the shared term
+runs the other way — and that is what makes it worth running. Cancellation still scales
+with resting volume summed over cohorts, so the coupling could easily stay strongly
+positive and the age weighting simply not be enough.
+
+### The mechanism, stated before measuring
+
+Everything on the arrival side is **inherited unchanged** from `cfg/lob_damping.yaml` — the
+AR(1) driver, the activity-dependent damping at γ = 0.6 — so exactly one thing changes and
+the comparison is clean. Cancellation is replaced.
+
+Each price level carries **8 age cohorts**. Per step:
+
+	arrivals enter cohort 0
+	cohort c cancels a fraction  h(c) = haz0 * (1 + 0.5 * c)     (rising hazard)
+	marketable orders consume OLDEST-first (price-time priority)
+	survivors age by one; the oldest cohort is absorbing
+
+Eight cohorts to match the eight price levels — arbitrary, stated, not fitted. The hazard
+SHAPE is fixed a priori at `0.5` per cohort, so hazard doubles by cohort 2; only its LEVEL
+is adjustable, per the parameter rule below.
+
+**Rising rather than falling, and the reason is economic**: an order that has sat unfilled
+is increasingly likely to be stale, and the maker re-prices it. Falling hazard would encode
+commitment instead — and would be the recycled-churn family again, keyed to recent
+arrivals, which the identity already rules out.
+
+### This does NOT need order identity, which was checked before writing this
+
+Age cohorts give the aggregate behaviour without per-order tracking, including price-time
+priority: consuming oldest-first is a prefix sum from the old end, the same reformulation
+the price-level sweep uses. Verified by running a one-level cohort model before this block
+was written.
+
+So `scan` is not used here. **Order identity buys the queue-position stability output, not
+this mechanism** — that is a separate block, and conflating the two would have made this
+one look like it needed an engine release it does not.
+
+### Validity precondition — the mechanism must actually be operating
+
+An age-structured model whose volume all sits in one cohort is not testing anything: with
+everything in cohort 0 it is memoryless churn, and with everything in the oldest it is
+constant-hazard attrition wearing a disguise.
+
+> **The fraction of resting volume in the oldest cohort must lie in [5%, 60%]**, and is
+> reported whichever way it falls. Outside that band, AP and AQ are recorded
+> **inconclusive** rather than scored, and the model is separately recorded as unable to
+> reach the regime the mechanism describes.
+
+This is the churn block's fault made mechanical, as the clip-binding precondition was.
+
+### Parameters
+
+`haz0` may be re-set **once**, on **mean depth alone**, into the 227.8–235.9 band the
+previous models produced — the same single adjustment every block here has had, with the
+sweep recorded and no correlation computed while choosing. The hazard shape, the cohort
+count and everything on the arrival side are fixed and may not move.
+
+### Predictions
+
+Labelled AP–AS. Bands are **identical to prediction Y's** so the two mechanisms are
+directly comparable.
+
+**AP — the paired depth signature.** `corr(depth, cancels)` in **[−0.30, −0.01]** AND
+`corr(depth, arrivals)` in **[−0.40, −0.05]**.
+
+The joint landing, and the test. The arrival side is inherited so its half is near-forced;
+the cancellation side is the open question and could plausibly come out anywhere from
+strongly positive (age weighting too weak to matter) to inside the band.
+
+**AQ — the ordering.** `|corr(depth, arrivals)| > |corr(depth, cancels)|`, as on all six
+Binance segments.
+
+**AR — the co-movement.** `corr(arrivals, cancels)` > **+0.85**.
+
+**The cost check, and the one I expect to be hardest.** Cancellation now depends on the
+AGE DISTRIBUTION rather than on contemporaneous activity, so it may decouple from arrivals
+and lose the co-movement — which is the signature these models reproduce best and which
+the damping model already fails at +0.816. If AR fails, this mechanism buys the depth
+structure by selling the co-movement, which is the same bad trade recycled churn made.
+
+**AS — the book survives.** Depth drift **< 1.3** and spread standard deviation **> 0.1**.
+
+### What each outcome means
+
+| AP | AR | reading |
+|---|---|---|
+| **pass** | **pass** | The first mechanism to reproduce the paired depth signature AND clear the co-movement floor. That would be the strongest model this project has produced, and the point at which a fresh out-of-sample recording is worth making against it. |
+| **pass** | **fail** | The depth structure is reachable through ageing but costs the co-movement. Read together with the damping model's identical failure, that would say the two signatures are in tension in this vocabulary — a structural finding, and a more useful one than another elimination. |
+| **fail (positive)** | — | Age weighting is not enough: cancellation summed over cohorts still tracks depth. The identity generalises further than recent arrivals, to *any* rule proportional to resting volume however weighted, which would be a sharper statement than the current one. |
+| **fail (overshoot)** | — | The response exists and is too strong at this hazard shape. A parameter question, needing a fresh pre-registration rather than a sweep here. |
+| *inconclusive* | — | Oldest-cohort share outside [5%, 60%]. The regime was not reached; that is a limit on the mechanism's usable range, not a free pass. |
+
+### What even a full pass would not establish
+
+Every number is a 32-member ensemble mean at 8000 steps and model-internal. The target
+bands come from Binance segments whose flows are both **inferred from net depth changes**,
+so the standing confound is untouched. And the noise-floor work applies: a pass decided by
+less than ~0.01 is not decided at all.
+
+Nothing here is a calibration — no parameter is fitted to a market number, and `haz0`
+moves only on mean depth.
