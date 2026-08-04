@@ -1,0 +1,148 @@
+# TIME-IN-QUEUE CANCELLATION — the fifth mechanism candidate, and the complement of the
+# one that failed.
+#
+# Predictions AP-AS were fixed in PREREGISTRATION.md and committed in 58d48a4 (amended in
+# bf11415, before this file was run) before this config existed.
+#
+# ── THE IDEA ──────────────────────────────────────────────────────────────────
+#
+# The identity result from cfg/lob_churn_recycled.yaml: ANY cancellation rule keyed to
+# RECENT arrivals inherits a positive depth coupling, because recent arrivals ARE current
+# depth. Rising-hazard time-in-queue is the complement — it weights cancellation toward the
+# OLDEST resting volume. A burst of arrivals raises depth while adding LOW-hazard volume,
+# so cancellation does not follow; that cohort cancels later, when depth has moved on.
+#
+# The identity argument does not settle which way this comes out, because the shared term
+# runs the other way. That is why it is worth running.
+#
+# ── THE STATE ─────────────────────────────────────────────────────────────────
+#
+# Each price level carries 8 AGE COHORTS, flattened level-major within each side:
+#
+#   index = side*64 + level*8 + cohort        cohort 0 is newest, cohort 7 oldest
+#
+# Depth at a level is the sum over its cohorts, which is what the inherited arrival
+# damping reads. Everything on the arrival side — the AR(1) driver, the
+# activity-dependent damping at gamma 0.6 — is UNCHANGED from cfg/lob_damping.yaml, so
+# exactly one thing differs between the two models.
+#
+# ── PRICE-TIME PRIORITY WITHOUT ORDER IDENTITY ────────────────────────────────
+#
+# A marketable order walks levels nearest-first and, within a level, consumes the OLDEST
+# cohort first. That is a prefix sum in a permuted order, not a per-order lookup, so it
+# needs no order identity — verified on a one-level cohort model before the predictions
+# were written. scan() is used for the prefix sum because it is O(n) where the
+# each-of-sum-over-slices idiom is O(n^2) at 128 slots; that is a speed choice and the
+# pre-registration records the amendment.
+#
+# ── WHAT IS NOT INHERITED ─────────────────────────────────────────────────────
+#
+# The depth-neutral churn term is GONE. Cancellation here is entirely the age hazard:
+#
+#   h(c) = haz0 * (1 + hazard_shape * c)
+#
+# hazard_shape is fixed a priori at 0.5, so hazard doubles by cohort 2. Only haz0 moves,
+# and only once, on mean depth.
+main:
+  partitions:
+  - name: lob_ages
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      arrival_scale: [19.0]
+      act_ref: [4.0]
+      damping_gamma: [0.6]
+      activity_shape: [0.222222]
+      activity_rate: [0.0555556]
+      persistence: [0.8]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      # THE ONE VALUE THIS FILE MAY RE-SET, and only on mean depth.
+      haz0: [0.18]
+      # FIXED A PRIORI. Hazard doubles by cohort 2. Not adjustable.
+      hazard_shape: [0.5]
+      ncoh: [8.0]
+      nlvl: [8.0]
+    init_state_values:
+      [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.75, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.375, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125, 0.125,
+       0, 0, 0, 52, 2, 4.0, 0]
+    state_history_depth: 1
+    seed: 20260820
+  expressions:
+  - partition: lob_ages
+    fields:
+    - {name: ages, width: 128}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    - {name: prev_activity}
+    - {name: oldest_share}
+    bindings:
+    - {name: activity, expr: "shared(persistence * prev_activity + (1 - persistence) * gamma(activity_shape, activity_rate))"}
+    # Per-slot coordinates, computed once.
+    - {name: coh, expr: "each(128, i, i - ncoh * floor(i / ncoh))"}
+    - {name: lvl, expr: "each(128, i, floor(i / ncoh) - nlvl * floor(i / (ncoh * nlvl)))"}
+    - {name: side, expr: "each(128, i, floor(i / (ncoh * nlvl)))"}
+    # Depth per (side, level): 16 sums of 8 cohorts each.
+    - {name: lvl_depth, expr: "each(16, j, sum(slice(ages, j * ncoh, 8)))"}
+    # THE INHERITED ARRIVAL SIDE. Damped by that level's total depth, exactly as in
+    # cfg/lob_damping.yaml, and drawn per (side, level).
+    - {name: arr_lvl, expr: "each(16, j, poisson(limit_rate * exp(-arrival_decay * (j - nlvl * floor(j / nlvl))) * activity * dt / (1 + slice(lvl_depth, j, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+    # THE MECHANISM. Hazard rises with cohort age; nothing here reads depth.
+    - {name: hazard, expr: "haz0 * (1 + hazard_shape * coh)"}
+    - {name: cancelled, expr: "min(ages, ages * hazard)"}
+    - {name: survived, expr: "ages - cancelled"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+    # PRICE-TIME PRIORITY. Consumption position within a side is level-major with the
+    # OLDEST cohort first, so slot i is consumed at position lvl*8 + (7 - coh). Reorder
+    # into that sequence, prefix-sum it with scan, then map back.
+    - {name: pos, expr: "each(128, i, slice(side, i, 1) * 64 + slice(lvl, i, 1) * ncoh + (ncoh - 1 - slice(coh, i, 1)))"}
+    - {name: byorder, expr: "each(128, p, sum(where(pos == p, survived, 0)))"}
+    - {name: cum_order, expr: "scan(128, p, acc, fill(128, 0), concat(slice(acc, 0, p), where(p - 64 * floor(p / 64) == 0, 0, slice(acc, p - 1, 1) + slice(byorder, p - 1, 1)), slice(acc, p + 1, 127 - p)))"}
+    - {name: cum, expr: "each(128, i, slice(cum_order, slice(pos, i, 1), 1))"}
+    # Bid side (0) is consumed by sells, ask side (1) by buys.
+    - {name: sweep, expr: "each(128, i, where(slice(side, i, 1) > 0, buy_size, sell_size))"}
+    - {name: hit, expr: "clamp(sweep - cum, 0, survived)"}
+    - {name: left, expr: "survived - hit"}
+    # AGE BY ONE. Cohort 0 refills from arrivals at that (side, level); cohort c inherits
+    # what survived in cohort c-1.
+    # The oldest cohort is ABSORBING — it keeps its own survivors as well as inheriting
+    # cohort 6's. An earlier version discarded them, which capped residence at 8 steps and
+    # capped depth regardless of hazard; that was a bug against the pre-registered
+    # mechanism, not a parameter choice.
+    - {name: aged, expr: "each(128, i, where(slice(coh, i, 1) == 0, slice(arr_lvl, floor(i / ncoh), 1), where(slice(coh, i, 1) == ncoh - 1, slice(left, i - 1, 1) + slice(left, i, 1), slice(left, i - 1, 1))))"}
+    # Observables.
+    - {name: next_depth, expr: "each(16, j, sum(slice(aged, j * ncoh, 8)))"}
+    - {name: occ, expr: "where(next_depth > 0, 1, 0)"}
+    - {name: occ_bid, expr: "slice(occ, 0, 8)"}
+    - {name: occ_ask, expr: "slice(occ, 8, 8)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    # THE VALIDITY PRECONDITION: what share of resting volume sits in the oldest cohort.
+    - {name: oldest, expr: "sum(where(coh == ncoh - 1, ages, 0))"}
+    outputs:
+    - "aged"
+    - "sum(arr_lvl)"
+    - "sum(cancelled)"
+    - "sum(hit)"
+    - "sum(ages)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+    - "activity"
+    - "oldest / max(sum(ages), 0.000001)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

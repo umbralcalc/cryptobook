@@ -1800,3 +1800,59 @@ less than ~0.01 is not decided at all.
 
 Nothing here is a calibration — no parameter is fitted to a market number, and `haz0`
 moves only on mean depth.
+
+### Scored, 2026-08-02 — INCONCLUSIVE, and the regime is unreachable
+
+**AP and AQ carry no verdict.** The validity precondition cannot be met at any value of the
+one adjustable parameter, which this block pre-registered as an outcome: *"the model is
+separately recorded as unable to reach the regime the mechanism describes."*
+
+`haz0` was swept on mean depth alone, as permitted. The response has a near-discontinuity:
+
+| `haz0` | mean depth | oldest-cohort share |
+|---|---|---|
+| 0.030 | 161.2 | 0.077 |
+| 0.015 | 181.2 | 0.095 |
+| 0.0120 | **113.6** | **0.027** |
+| 0.0118 | **350.1** | **0.639** |
+| 0.0110 | 362.3 | 0.655 |
+| 0.0050 | 568.8 | 0.809 |
+
+**The target depth band (227.8–235.9) and the validity window ([5%, 60%]) both fall inside
+the gap between 0.0120 and 0.0118.** There is no setting that reaches either.
+
+#### Why, mechanically
+
+The oldest cohort is **absorbing** — it keeps its own survivors as well as inheriting
+cohort 6's. Its outflow is `hazard × volume` against an inflow set by what survives seven
+younger cohorts. Below a threshold hazard the absorbing cohort accumulates until the
+arrival damping brakes it, and above it the cohort is swept out almost entirely. Either old
+volume is negligible or it dominates the book; the intermediate state the mechanism
+describes is where the model does not sit.
+
+#### A bug found and fixed before this scoring, not after
+
+The first config **discarded** cohort 7's survivors rather than absorbing them, which capped
+residence at 8 steps and capped depth at ~181 regardless of hazard. That contradicted the
+mechanism as pre-registered ("the oldest cohort is absorbing"), so it was fixed. The
+numbers above are from the corrected config.
+
+Worth recording: the **buggy** version had an oldest-cohort share of 0.095 — inside the
+validity window — and a depth of 181, outside the band. So the discarding variant reaches
+the regime the absorbing one cannot. That is a different mechanism from the pre-registered
+one and is **not** scored here; noting it is not a licence to adopt it after the fact.
+
+#### What is and is not established
+
+Established: **with 8 cohorts and an absorbing tail, rising-hazard time-in-queue has no
+setting at which old volume is a moderate fraction of the book.** That is a limit on the
+mechanism's usable range, and it is why AP and AQ carry no verdict rather than a failure.
+
+Not established: that time-in-queue cancellation cannot produce the paired depth signature.
+The mechanism was never scored on it. A finite maximum age, or more cohorts, or a hazard
+that flattens rather than rising without bound, are all untested variants — and each would
+need its own pre-registration, because choosing one now would be choosing it having seen
+that the first attempt could not be scored.
+
+Also untested: whether the transition is genuine bistability with hysteresis or simply a
+very steep monotone response. Only a one-directional sweep was run.
