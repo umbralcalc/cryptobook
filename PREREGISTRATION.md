@@ -1856,3 +1856,100 @@ that the first attempt could not be scored.
 
 Also untested: whether the transition is genuine bistability with hysteresis or simply a
 very steep monotone response. Only a one-directional sweep was run.
+
+---
+
+## Time-in-queue with a finite patience horizon — predictions fixed before `cfg/lob_ages_finite.yaml` exists
+
+**Fixed 2026-08-02, before the config is written.** A second attempt at the fifth
+mechanism, after AP–AS came out inconclusive because the model could not reach its own
+regime.
+
+### The diagnosis the variant is chosen from
+
+The absorbing oldest cohort is an **unbounded reservoir with a fixed per-unit hazard**. Its
+outflow is `hazard × volume` against an inflow set by what survives seven younger cohorts,
+so below a threshold it accumulates until the arrival damping brakes it and above it is
+swept out. That is what produced a near-discontinuity between `haz0` 0.0120 and 0.0118,
+with the depth band and the validity window both inside the gap.
+
+Three variants were named as untested. Judged against that diagnosis:
+
+| variant | does it remove the reservoir? |
+|---|---|
+| **finite maximum age** — an order is withdrawn with certainty at age *A* | **yes** — residence is bounded, so there is no accumulating tail |
+| more cohorts | no — it moves the reservoir further out and leaves it there |
+| hazard that flattens rather than rising | no — a plateau is still a fixed hazard on an unbounded tail |
+
+**Only the first addresses the diagnosed cause**, and the other two are predicted to
+reproduce the same failure. That is the ground the choice is made on.
+
+Economically it is the standard quote-refresh cycle: increasing impatience below a hard
+deadline, and a maker who has sat unfilled for *A* steps re-prices without exception.
+
+### My contamination, declared
+
+The inconclusive block's **first config had this bug** — it discarded the oldest cohort's
+survivors instead of absorbing them — so I have already seen the finite-age variant run. At
+`haz0` between 0.03 and 0.015 it gave an oldest-cohort share of 0.077–0.095, **inside the
+validity window**, at depths of 161–181, **below the target band**. I have not seen it
+below `haz0` 0.015, and I have never seen any correlation from it.
+
+So this is not a blind choice and must not be presented as one. What is blind: whether a
+setting exists that reaches the depth band, and every correlation AT–AW is scored on.
+
+**The reasoning above stands independently of that sighting** — a reservoir with fixed
+hazard is what caused the failure, and only bounding residence removes it. But the sighting
+is why this block, unlike the last, states its bands and preconditions knowing the
+mechanism can at least reach the window.
+
+### The mechanism, stated before measuring
+
+Identical to the AP–AS block except the tail. Arrival side inherited unchanged from
+`cfg/lob_damping.yaml`; 8 cohorts; `h(c) = haz0 * (1 + 0.5c)`; marketable orders consume
+oldest-first.
+
+	the oldest cohort's survivors are DISCARDED, not carried forward
+
+so residence is at most 8 steps and no cohort accumulates.
+
+### Preconditions, both mechanical
+
+1. **The depth band must be reachable.** `haz0` is swept on mean depth alone and must land
+   in **227.8–235.9**. If no setting reaches it, the block is recorded **inconclusive on
+   reachability** — the same verdict as last time and for a related reason, which would say
+   the bounded-residence variant trades one unreachable regime for another.
+2. **The oldest-cohort share must lie in [5%, 60%]** at the selected `haz0`, reported
+   either way. Outside it, AT and AU are **inconclusive**.
+
+### Predictions
+
+Bands identical to AP–AS and to prediction Y, so all three mechanisms are comparable.
+
+**AT — the paired depth signature.** `corr(depth, cancels)` in **[−0.30, −0.01]** AND
+`corr(depth, arrivals)` in **[−0.40, −0.05]**. The test.
+
+**AU — the ordering.** `|corr(depth, arrivals)| > |corr(depth, cancels)|`.
+
+**AV — the co-movement.** `corr(arrivals, cancels)` > **+0.85**. The cost check, and still
+the one I expect to be hardest: cancellation depends on the age distribution rather than on
+contemporaneous activity, so it may decouple from arrivals.
+
+**AW — the book survives.** Drift **< 1.3**, spread sd **> 0.1**.
+
+### What each outcome means
+
+| AT | AV | reading |
+|---|---|---|
+| **pass** | **pass** | The first mechanism to reproduce the paired depth signature *and* clear the co-movement floor. Worth a fresh out-of-sample recording against it — which, on this project's record, is where results have gone to die. |
+| **pass** | **fail** | Depth structure reachable through bounded ageing, at the cost of the co-movement — the same trade the damping model and recycled churn both made. Three mechanisms failing the same way stops being a coincidence and starts being a statement about the vocabulary. |
+| **fail (positive)** | — | Cancellation summed over cohorts still tracks depth even with bounded residence. The identity would then generalise to *any* rule proportional to resting volume however weighted, which is a much stronger claim than the current one and would close the whole cancellation-side family. |
+| **fail (overshoot)** | — | Response too strong at this hazard shape. A parameter question needing its own block. |
+| *inconclusive* | — | Either precondition missed. Recorded as a limit on usable range, not a free pass — and a second inconclusive result would say the age-structured family is hard to place in a testable regime at all. |
+
+### What even a full pass would not establish
+
+Model-internal, 32-member ensemble means at 8000 steps. The target bands come from Binance
+segments whose flows are both inferred from net depth changes. Nothing is fitted to a
+market number — `haz0` moves only on mean depth. And the noise floor applies: a margin
+under ~0.01 is not a result.
