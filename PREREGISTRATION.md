@@ -1953,3 +1953,64 @@ Model-internal, 32-member ensemble means at 8000 steps. The target bands come fr
 segments whose flows are both inferred from net depth changes. Nothing is fitted to a
 market number — `haz0` moves only on mean depth. And the noise floor applies: a margin
 under ~0.01 is not a result.
+
+### Scored, 2026-08-03 — INCONCLUSIVE on reachability, and the reason is arithmetic
+
+**AT–AW carry no verdict.** Precondition 1 fails: no value of `haz0` puts mean depth in the
+227.8–235.9 band. Swept on depth alone, as permitted:
+
+| `haz0` | mean depth |
+|---|---|
+| 0.0150 | 184.3 |
+| 0.0100 | 186.9 |
+| 0.0060 | 187.8 |
+| 0.0030 | 190.6 |
+| 0.0010 | 187.8 |
+| 0.0003 | **193.7** |
+
+Depth barely moves across a **50× range** of the parameter and never approaches the band.
+
+#### Why: the residence cap, not the hazard
+
+At `haz0` = 0.0003 the hazard is doing essentially nothing — 0.2 cancellations per step —
+and the model reports an **implied residence of 7.59 steps against a hard cap of 8**, with
+25.5 arrivals per step and a depth of 193.7 ≈ 25.5 × 7.59.
+
+So `depth = arrivals × residence`, residence is bounded at 8 by construction, and arrivals
+are damped to ~25 at that depth. The product cannot exceed ~200. **The band would need a
+residence of about 9 steps, which eight cohorts cannot supply at any hazard.**
+
+Precondition 2 would have passed — the oldest-cohort share is 0.115, inside [5%, 60%] — so
+this variant does reach the regime the absorbing one could not. It just cannot reach the
+depth the comparison requires.
+
+#### The structural finding, which is worth more than either result alone
+
+**Both age-structured variants miss the reference depth band, for opposite reasons.**
+
+| variant | failure |
+|---|---|
+| absorbing tail | bistable: 113.6 at `haz0` 0.0120, 350.1 at 0.0118. The band lies **inside the gap**. |
+| finite patience | capped: ~194 however low the hazard. The band lies **above the ceiling**. |
+
+With 8 cohorts, age-structured cancellation cannot produce the reference depth at the
+inherited arrival damping — the unbounded tail overshoots discontinuously and the bounded
+one undershoots by arithmetic. That is a statement about the family, not about two
+settings, and neither block alone would have supported it.
+
+#### What is NOT established, and the variant this diagnoses
+
+That time-in-queue cannot reproduce the paired depth signature. **It has still never been
+scored on it** — two attempts, two failures to reach a testable regime.
+
+The diagnosis names the next variant precisely: **more cohorts raise the residence cap**,
+and depth ≈ arrivals × residence says roughly 12 cohorts would put the ceiling near 300 and
+bring the band within reach. That is a concrete, arithmetically-motivated change — and it
+needs its own pre-registration, because naming it here having seen why this one failed is
+exactly the sequence that pre-registration exists to keep honest.
+
+Also unexamined: whether the *comparison band itself* is the right target for a model whose
+residence is structurally bounded. Holding mean depth fixed across mechanisms is what makes
+correlations comparable, so it was not relaxed — but a third failure on reachability would
+make it worth asking whether the constraint, rather than the mechanism, is what keeps
+failing.
