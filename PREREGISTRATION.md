@@ -2014,3 +2014,79 @@ residence is structurally bounded. Holding mean depth fixed across mechanisms is
 correlations comparable, so it was not relaxed — but a third failure on reachability would
 make it worth asking whether the constraint, rather than the mechanism, is what keeps
 failing.
+
+---
+
+## Twelve cohorts — predictions fixed before `cfg/lob_ages12.yaml` exists
+
+**Fixed 2026-08-03, before the config is written.** The third attempt at the fifth
+mechanism. Two attempts have failed on *reachability* and the mechanism has **still never
+been scored on the test it exists for**, so this block leads with a quantitative
+prediction about reachability itself.
+
+### The change, and why it is arithmetic rather than a guess
+
+`cfg/lob_ages_finite.yaml` capped at a mean depth of ~194 however low the hazard, because
+`depth = arrivals × residence` and residence is bounded at 8 by the cohort count. At
+`haz0` = 0.0003 the hazard did essentially nothing — 0.2 cancellations per step — and the
+model reported residence 7.59 against a cap of 8.
+
+**Only the cohort count moves: 8 → 12.** Hazard shape, arrival side, driver, everything
+else inherited unchanged.
+
+### AX — the ceiling prediction, stated with its working
+
+Undamped arrivals are `2 × E[activity] × Σ exp(−0.35 i)` over 8 levels and 2 sides ≈
+**50.9/step**. Damping is `≈ 1/(1 + depth/304)` at mean activity, and residence runs at
+about 0.95 of the cap. So the ceiling solves
+
+	depth = 50.9 × 0.95n / (1 + depth/304)
+
+giving **223 at n = 8** and **295 at n = 12**. The formula overestimates — it gave 223
+where 194 was measured — so scaling by that 0.87 factor puts the 12-cohort ceiling at
+**≈ 256**.
+
+> **AX: the mean-depth ceiling exceeds 235.9**, so the target band becomes reachable and
+> some `haz0` lands inside it. Point estimate **256**, and the prediction fails if the
+> ceiling comes in below the band exactly as it did twice before.
+
+This is falsifiable and it is the whole point of the block: if AX fails, the arithmetic
+that diagnosed both previous failures is wrong, and three reachability failures would say
+the problem is the comparison constraint rather than the mechanism.
+
+### Preconditions, unchanged from AT–AW
+
+1. `haz0` swept on **mean depth alone** must land in **227.8–235.9**. This is AX restated
+   as a gate; failing it makes AY–BB inconclusive.
+2. The oldest-cohort share must lie in **[5%, 60%]** at the selected `haz0`, reported
+   either way. (At 8 cohorts it was 0.115 — inside — so this is not expected to bind, and
+   saying so now means a surprise is visible as one.)
+
+### Predictions
+
+Bands identical to Y, AP–AS and AT–AW, so every mechanism remains comparable.
+
+**AY — the paired depth signature.** `corr(depth, cancels)` in **[−0.30, −0.01]** AND
+`corr(depth, arrivals)` in **[−0.40, −0.05]**. The test the mechanism has never reached.
+
+**AZ — the ordering.** `|corr(depth, arrivals)| > |corr(depth, cancels)|`.
+
+**BA — the co-movement.** `corr(arrivals, cancels)` > **+0.85**. Still expected hardest:
+cancellation depends on the age distribution rather than contemporaneous activity.
+
+**BB — the book survives.** Drift **< 1.3**, spread sd **> 0.1**.
+
+### What each outcome means
+
+| AX | AY | BA | reading |
+|---|---|---|---|
+| pass | **pass** | pass | Time-in-queue reproduces the paired depth signature and keeps the co-movement — the first mechanism to do both, after five candidates. Worth a fresh out-of-sample recording. |
+| pass | **pass** | **fail** | The **third** mechanism to buy depth structure by selling co-movement, after the damping model and recycled churn. Three independent mechanisms failing the same way is a statement about the vocabulary, not about any one of them. |
+| pass | **fail (positive)** | — | Cancellation summed over cohorts still tracks depth at 12 cohorts as at 8. The identity would generalise to *any* rule proportional to resting volume however weighted — closing the entire cancellation-side family, which is the most valuable failure available. |
+| **fail** | — | — | The arithmetic that diagnosed both previous failures is wrong. Three reachability failures would shift the question to whether holding mean depth fixed across mechanisms is the right constraint at all — a protocol decision, not a modelling one, and one for the maintainer. |
+
+### What even a full pass would not establish
+
+Model-internal, 32-member ensemble means at 8000 steps. Target bands come from Binance
+segments whose flows are both inferred from net depth changes. Nothing is fitted to a
+market number — `haz0` moves only on mean depth. A margin under ~0.01 is not a result.
