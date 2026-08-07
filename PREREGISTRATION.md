@@ -2090,3 +2090,75 @@ cancellation depends on the age distribution rather than contemporaneous activit
 Model-internal, 32-member ensemble means at 8000 steps. Target bands come from Binance
 segments whose flows are both inferred from net depth changes. Nothing is fitted to a
 market number — `haz0` moves only on mean depth. A margin under ~0.01 is not a result.
+
+### Scored, 2026-08-03 — AX passes, the rest fails, and my precondition was badly designed
+
+**AX PASSED.** The mean-depth ceiling is **291.4** against a predicted **256** — within 14%
+— and comfortably clears 235.9. `haz0` = 0.016 gives an ensemble mean depth of **233.2**,
+inside the band. **Precondition 1 is satisfied for the first time in three attempts**, and
+the arithmetic that diagnosed both earlier failures was right.
+
+| | measured | verdict |
+|---|---|---|
+| AX ceiling > 235.9 | **291.4** | **pass** |
+| precondition 1, depth in band | 233.2 (SE 0.5) | pass |
+| precondition 2, oldest share in [5%, 60%] | **0.0474** | **FAIL** |
+| AY `corr(depth, cancels)` in [−0.30, −0.01] | **+0.940** (SE 0.0006) | inconclusive, and wrong-signed |
+| AY `corr(depth, arrivals)` in [−0.40, −0.05] | **+0.312** (SE 0.0033) | inconclusive, and wrong-signed |
+| AZ ordering margin > 0 | −0.628 | inconclusive |
+| BA `corr(arrivals, cancels)` > +0.85 | **+0.180** (SE 0.0042) | **FAIL** |
+| BB drift < 1.3, spread sd > 0.1 | 1.0027, **0.0958** | **FAIL** on the spread limb |
+
+#### My precondition was not scale-free, and that is a design error
+
+Precondition 2 measures the share of resting volume in **the oldest cohort**. That is not
+invariant to how many cohorts there are: spreading the same age distribution over 12 bins
+instead of 8 mechanically lowers the top bin's share. It fell from 0.115 to 0.0474 for
+exactly that reason, not because the age structure stopped operating.
+
+So the precondition did not test what it was written to test, and it fired on a change of
+resolution rather than a change of behaviour. **A scale-free version — mean age relative to
+the cap, or the share in the oldest third — would not have fired.** I am recording that
+rather than substituting one now, because swapping a precondition after it fails is the
+edit this file exists to forbid. AY and AZ stay inconclusive on the rule as written.
+
+#### The numbers are formally inconclusive and substantively decisive
+
+`corr(depth, cancels)` = **+0.940**. That is not a weak version of the target; it is nearly
+a deterministic relationship, and it is the attrition signature in its purest form yet
+seen. With a stable age distribution, `Σ hazard(c) × volume(c)` is an effective rate times
+depth, so summed cancellation tracks depth almost exactly however the hazard is weighted
+across ages.
+
+**That is the "AY fails positive" row of the outcome table**, which this block called the
+most valuable failure available: the identity generalises from *rules keyed to recent
+arrivals* to **any rule proportional to resting volume however weighted by age**. Age
+weighting does not break the coupling — it only reweights which volume contributes.
+
+BA at +0.180 is the predicted cost realised at full strength: cancellation follows a slow
+age distribution while arrivals follow a fast driver, so the two decouple almost entirely.
+
+#### A measurement-definition problem, found while scoring and worth more than the scores
+
+**Volume leaving by the age cap is not counted as a cancellation.** `n_cancel` sums only
+hazard cancellations; the oldest cohort's discarded survivors simply vanish from the book.
+In the Binance data, an order removed for any non-trade reason *is* a cancellation.
+
+So the model's cancellation series and the market's are **not like-for-like**, and every
+`corr(depth, cancels)` comparison in this block — and in the two blocks before it — is
+between quantities defined differently. It does not rescue this result, since counting the
+expiry term would add something also roughly proportional to depth. But it is a real defect
+in the comparison, it was introduced by the age-cap mechanism, and it should be fixed before
+any age-structured model is scored against market data again.
+
+#### Where the fifth mechanism now stands
+
+Three attempts. The first two never reached a testable regime; this one did, and the
+mechanism **failed on the axis it was built for** — with the caveat that its two most
+diagnostic predictions are formally inconclusive on a precondition that fired for the wrong
+reason.
+
+What is established: **age-structured cancellation does not break the depth coupling**, and
+the reason generalises beyond this mechanism. What is not: anything about a corrected
+cancellation definition, or about a scale-free precondition, both of which would need a
+fresh block.

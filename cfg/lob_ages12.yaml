@@ -1,0 +1,179 @@
+# TWELVE COHORTS — the fifth mechanism, third attempt.
+#
+# Predictions AX-BB were fixed in PREREGISTRATION.md and committed in 1912e26 before this
+# config existed, INCLUDING a quantitative prediction that the mean-depth ceiling rises
+# from ~194 to about 256 and so clears the 227.8-235.9 band.
+#
+# ONLY THE COHORT COUNT MOVES: 8 -> 12. Hazard shape, arrival side and driver are all
+# inherited unchanged, and residence is still bounded (the oldest cohort's survivors are
+# discarded), because the previous block established that bounding it is what removes the
+# bistable reservoir. cfg/lob_ages.yaml stays pinned and unmodified — it is what the
+# inconclusive AP-AS result was measured against.
+#
+# ── WHY THIS VARIANT, AND THE CONTAMINATION THAT COMES WITH IT ────────────────
+#
+# AP-AS came out INCONCLUSIVE: with an ABSORBING oldest cohort the model could reach
+# neither the target depth band nor its own validity window, because the tail is an
+# unbounded reservoir with a fixed per-unit hazard and its response is near-discontinuous.
+#
+# This file bounds residence instead: an order is withdrawn with certainty at age 8. Of the
+# three variants named as untested, only this one removes the diagnosed cause — more
+# cohorts and a flattening hazard both leave a fixed-hazard tail in place.
+#
+# DECLARED: the first version of cfg/lob_ages.yaml had this behaviour as a BUG, so this
+# variant has been seen to run at haz0 between 0.03 and 0.015, giving an oldest-cohort
+# share of 0.077-0.095 (inside the window) at depths 161-181 (below the band). Nothing
+# below haz0 0.015 has been seen, and no correlation from it ever has.
+#
+# ── ITS SEED DIFFERS FROM cfg/lob_ages.yaml ───────────────────────────────────
+#
+# Deliberately: these are two models, not one model measured twice, and sharing a seed
+# would invite reading their difference as a controlled comparison when the draw sequences
+# differ anyway once cancellation changes.
+#
+# ── THE IDEA ──────────────────────────────────────────────────────────────────
+#
+# The identity result from cfg/lob_churn_recycled.yaml: ANY cancellation rule keyed to
+# RECENT arrivals inherits a positive depth coupling, because recent arrivals ARE current
+# depth. Rising-hazard time-in-queue is the complement — it weights cancellation toward the
+# OLDEST resting volume. A burst of arrivals raises depth while adding LOW-hazard volume,
+# so cancellation does not follow; that cohort cancels later, when depth has moved on.
+#
+# The identity argument does not settle which way this comes out, because the shared term
+# runs the other way. That is why it is worth running.
+#
+# ── THE STATE ─────────────────────────────────────────────────────────────────
+#
+# Each price level carries 8 AGE COHORTS, flattened level-major within each side:
+#
+#   index = side*64 + level*8 + cohort        cohort 0 is newest, cohort 7 oldest
+#
+# Depth at a level is the sum over its cohorts, which is what the inherited arrival
+# damping reads. Everything on the arrival side — the AR(1) driver, the
+# activity-dependent damping at gamma 0.6 — is UNCHANGED from cfg/lob_damping.yaml, so
+# exactly one thing differs between the two models.
+#
+# ── PRICE-TIME PRIORITY WITHOUT ORDER IDENTITY ────────────────────────────────
+#
+# A marketable order walks levels nearest-first and, within a level, consumes the OLDEST
+# cohort first. That is a prefix sum in a permuted order, not a per-order lookup, so it
+# needs no order identity — verified on a one-level cohort model before the predictions
+# were written. scan() is used for the prefix sum because it is O(n) where the
+# each-of-sum-over-slices idiom is O(n^2) at 128 slots; that is a speed choice and the
+# pre-registration records the amendment.
+#
+# ── WHAT IS NOT INHERITED ─────────────────────────────────────────────────────
+#
+# The depth-neutral churn term is GONE. Cancellation here is entirely the age hazard:
+#
+#   h(c) = haz0 * (1 + hazard_shape * c)
+#
+# hazard_shape is fixed a priori at 0.5, so hazard doubles by cohort 2. Only haz0 moves,
+# and only once, on mean depth.
+main:
+  partitions:
+  - name: lob_ages12
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      arrival_scale: [19.0]
+      act_ref: [4.0]
+      damping_gamma: [0.6]
+      activity_shape: [0.222222]
+      activity_rate: [0.0555556]
+      persistence: [0.8]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      # THE ONE VALUE THIS FILE MAY RE-SET, and only on mean depth.
+      # SELECTED on mean depth alone, as the pre-registration permits: 0.016 gives an
+      # ensemble mean depth of 233.2, inside the 227.8-235.9 band and nearest its midpoint.
+      # 0.017 (229.3) also lands; the block stated no tie-break, so nearest-midpoint was
+      # applied and is recorded here.
+      haz0: [0.016]
+      # FIXED A PRIORI. Hazard doubles by cohort 2. Not adjustable.
+      hazard_shape: [0.5]
+      ncoh: [12.0]
+      nlvl: [8.0]
+    init_state_values:
+      [0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833,
+       0, 0, 0, 52, 2, 4.0, 0]
+    state_history_depth: 1
+    seed: 20260822
+  expressions:
+  - partition: lob_ages12
+    fields:
+    - {name: ages, width: 192}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    - {name: prev_activity}
+    - {name: oldest_share}
+    bindings:
+    - {name: activity, expr: "shared(persistence * prev_activity + (1 - persistence) * gamma(activity_shape, activity_rate))"}
+    # Per-slot coordinates, computed once.
+    - {name: coh, expr: "each(192, i, i - ncoh * floor(i / ncoh))"}
+    - {name: lvl, expr: "each(192, i, floor(i / ncoh) - nlvl * floor(i / (ncoh * nlvl)))"}
+    - {name: side, expr: "each(192, i, floor(i / (ncoh * nlvl)))"}
+    # Depth per (side, level): 16 sums of 8 cohorts each.
+    - {name: lvl_depth, expr: "each(16, j, sum(slice(ages, j * ncoh, 8)))"}
+    # THE INHERITED ARRIVAL SIDE. Damped by that level's total depth, exactly as in
+    # cfg/lob_damping.yaml, and drawn per (side, level).
+    - {name: arr_lvl, expr: "each(16, j, poisson(limit_rate * exp(-arrival_decay * (j - nlvl * floor(j / nlvl))) * activity * dt / (1 + slice(lvl_depth, j, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+    # THE MECHANISM. Hazard rises with cohort age; nothing here reads depth.
+    - {name: hazard, expr: "haz0 * (1 + hazard_shape * coh)"}
+    - {name: cancelled, expr: "min(ages, ages * hazard)"}
+    - {name: survived, expr: "ages - cancelled"}
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+    # PRICE-TIME PRIORITY. Consumption position within a side is level-major with the
+    # OLDEST cohort first, so slot i is consumed at position lvl*8 + (7 - coh). Reorder
+    # into that sequence, prefix-sum it with scan, then map back.
+    - {name: pos, expr: "each(192, i, slice(side, i, 1) * 96 + slice(lvl, i, 1) * ncoh + (ncoh - 1 - slice(coh, i, 1)))"}
+    - {name: byorder, expr: "each(192, p, sum(where(pos == p, survived, 0)))"}
+    - {name: cum_order, expr: "scan(192, p, acc, fill(192, 0), concat(slice(acc, 0, p), where(p - 96 * floor(p / 96) == 0, 0, slice(acc, p - 1, 1) + slice(byorder, p - 1, 1)), slice(acc, p + 1, 191 - p)))"}
+    - {name: cum, expr: "each(192, i, slice(cum_order, slice(pos, i, 1), 1))"}
+    # Bid side (0) is consumed by sells, ask side (1) by buys.
+    - {name: sweep, expr: "each(192, i, where(slice(side, i, 1) > 0, buy_size, sell_size))"}
+    - {name: hit, expr: "clamp(sweep - cum, 0, survived)"}
+    - {name: left, expr: "survived - hit"}
+    # AGE BY ONE. Cohort 0 refills from arrivals at that (side, level); cohort c inherits
+    # what survived in cohort c-1.
+    # THE FINITE PATIENCE HORIZON, and the only difference from cfg/lob_ages.yaml.
+    # The oldest cohort's survivors are DISCARDED rather than carried forward, so an order
+    # is withdrawn with certainty at age 8 and no cohort accumulates. That removes the
+    # unbounded reservoir whose fixed per-unit hazard made the absorbing variant bistable.
+    - {name: aged, expr: "each(192, i, where(slice(coh, i, 1) == 0, slice(arr_lvl, floor(i / ncoh), 1), slice(left, i - 1, 1)))"}
+    # Observables.
+    - {name: next_depth, expr: "each(16, j, sum(slice(aged, j * ncoh, 8)))"}
+    - {name: occ, expr: "where(next_depth > 0, 1, 0)"}
+    - {name: occ_bid, expr: "slice(occ, 0, 8)"}
+    - {name: occ_ask, expr: "slice(occ, 8, 8)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    # THE VALIDITY PRECONDITION: what share of resting volume sits in the oldest cohort.
+    - {name: oldest, expr: "sum(where(coh == ncoh - 1, ages, 0))"}
+    outputs:
+    - "aged"
+    - "sum(arr_lvl)"
+    - "sum(cancelled)"
+    - "sum(hit)"
+    - "sum(ages)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+    - "activity"
+    - "oldest / max(sum(ages), 0.000001)"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0
