@@ -36,6 +36,7 @@ package ceiling
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/umbralcalc/cryptobook/pkg/cfgrun"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
@@ -140,7 +141,7 @@ func measureRoute(r route) (measured, error) {
 	}, nil
 }
 
-func measureAll() (map[string]measured, error) {
+func measureAllUncached() (map[string]measured, error) {
 	out := make(map[string]measured, len(routes))
 	for _, r := range routes {
 		m, err := measureRoute(r)
@@ -150,6 +151,20 @@ func measureAll() (map[string]measured, error) {
 		out[r.label] = m
 	}
 	return out, nil
+}
+
+// measureAll caches the sweep. ObservedBehaviour and TestTheTwoRoutesReachAMatchedCeiling
+// both need it, and running three 32-member ensembles twice made this the second-slowest
+// package in the -race suite for no additional evidence.
+var (
+	measureOnce   sync.Once
+	measureCached map[string]measured
+	measureErr    error
+)
+
+func measureAll() (map[string]measured, error) {
+	measureOnce.Do(func() { measureCached, measureErr = measureAllUncached() })
+	return measureCached, measureErr
 }
 
 // ObservedBehaviour pins the ceiling account and the matched-pair result.

@@ -52,6 +52,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/umbralcalc/cryptobook/pkg/cfgrun"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
@@ -199,7 +200,7 @@ func measure(m model) (measured, error) {
 	}, nil
 }
 
-func measureAll() ([]model, map[string]measured, error) {
+func measureAllUncached() ([]model, map[string]measured, error) {
 	models, err := discover()
 	if err != nil {
 		return nil, nil, err
@@ -213,6 +214,19 @@ func measureAll() ([]model, map[string]measured, error) {
 		out[m.file] = r
 	}
 	return models, out, nil
+}
+
+// measureAll caches the sweep, for the same reason pkg/ceiling does.
+var (
+	measureOnce   sync.Once
+	measureModels []model
+	measureCached map[string]measured
+	measureErr    error
+)
+
+func measureAll() ([]model, map[string]measured, error) {
+	measureOnce.Do(func() { measureModels, measureCached, measureErr = measureAllUncached() })
+	return measureModels, measureCached, measureErr
 }
 
 func label(file string) string { return strings.TrimSuffix(file, ".yaml") }
