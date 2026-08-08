@@ -2417,3 +2417,65 @@ That no *other* change closes the gap — only that γ alone cannot. Model-inter
 ensemble means at 8000 steps, against a grand mean from three distinct occasions on one
 venue. Tolerances are 1.5 SD of a between-window spread estimated from those three, so they
 are softer than they look.
+
+### Scored, 2026-08-03 — all four pass, and the quantitative prediction landed
+
+| γ | `corr(d,arr)` | `corr(d,can)` | `corr(arr,can)` | depth bands | co-movement floor |
+|---|---|---|---|---|---|
+| 0.00 | +0.2737 | +0.4104 | **0.9026** | ✗ | ✗ |
+| 0.15 | +0.1751 | +0.2965 | 0.8995 | ✗ | ✗ |
+| 0.30 | +0.0303 | +0.1342 | 0.8991 | ✗ | ✗ |
+| 0.45 | −0.0989 | −0.0048 | 0.8938 | **✓** | ✗ |
+| 0.60 | −0.2157 | −0.1227 | 0.8869 | **✓** | ✗ |
+
+| | measured | |
+|---|---|---|
+| **BG** disjoint, max co-movement in [0.900, 0.915] | no γ satisfies all three; **max 0.9026** | **pass, both limbs** |
+| **BH** all three monotone decreasing in γ | strictly, on all three | **pass** |
+| **BI** some γ satisfies both depth bands | γ = 0.45 and 0.60 | **pass** |
+| **BJ** book survives at every γ | drift 0.996–1.005, sd 0.639–0.691 | **pass** |
+
+**The first block in this project where every prediction passed**, and the headline one was
+quantitative with two ways to miss.
+
+#### The margin, stated where it matters rather than where it flatters
+
+BG scored the maximum co-movement across the grid: **0.9026 against a floor of 0.9134**, a
+shortfall of **0.011**. But that maximum sits at γ = 0, where the depth correlations are
+strongly *positive* and hopeless.
+
+**Inside the depth-feasible region the shortfall is larger: 0.020 at γ = 0.45 and 0.027 at
+γ = 0.60.** That is the number any future work has to buy, and quoting the 0.011 would be
+picking the flattering end of a trade-off this block exists to measure.
+
+#### BC's constant-penalty finding extrapolates across γ, which it had not been tested on
+
+BC measured the saturation gap at one γ. Against the Var = 11.81 ceiling of 0.9505:
+
+| γ | gap at Var 8 | gap at Var 11.81 |
+|---|---|---|
+| 0.00 | 0.0414 | 0.0479 |
+| 0.60 | 0.0657 | 0.0636 |
+
+Roughly stable at both ends, so the account generalises. The extrapolation this block
+declared predicted 0.909 at γ = 0 and 0.885 at γ = 0.60; measured 0.9026 and 0.8869 —
+within 0.007 and 0.002. **The arithmetic that made this a prediction rather than a sweep
+holds across the parameter it was never tested on.**
+
+#### What this establishes
+
+**One parameter cannot hold both signatures.** The feasible sets are disjoint, monotonically
+so across the whole interval rather than at five points, and the depth window is non-empty —
+so this is a genuine trade-off, not an artefact of an unreachable target.
+
+And it is **quantified**: a structural change would have to buy about **0.02–0.03 of
+co-movement without moving the depth correlations**. That is a specification for the next
+change rather than a direction, which is the first time this project has had one.
+
+#### What it does not establish
+
+That no *other* change closes it — only that γ alone cannot. The co-movement floor is
+1.5 SD of a between-window spread estimated from **three distinct occasions**, so it is
+softer than a 1.5 SD band normally implies; a wider tolerance would put γ = 0.45 inside.
+And the whole block is a confirmation of a declared extrapolation, so its value is in the
+magnitudes, not the direction.
