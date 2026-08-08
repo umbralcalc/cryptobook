@@ -2760,3 +2760,91 @@ rather than a single window.
 The tolerances are 1.5 SD on a between-window spread estimated from **three distinct
 occasions** on one venue, so they are softer than they look. The standing inference confound
 is untouched.
+
+---
+
+## Out of sample again, with the pooled protocol — fixed before the recording
+
+**Fixed 2026-08-08 15:04 UTC, before a single new row exists.** `cfg/lob_counts.yaml` met
+all three pooled targets in-sample. Every prior in-sample success in this project has failed
+out of sample, and the pre-registration that produced this one committed to a fresh
+recording as the next step. This is it.
+
+### The model is frozen
+
+`cfg/lob_counts.yaml` exactly as shipped — `limit_rate` 3.381, `churn_rate` 1.900,
+`damping_gamma` 0.45, driver variance 11.81. **Nothing may be refitted for this test, ever.**
+A test asserts the shipped values, and if they change after this window is recorded the
+result must be withdrawn rather than re-scored.
+
+### A correction to the tolerance basis, made before recording
+
+Previous blocks used a **between-window** SD pooled over seven windows — but five of those
+seven were minutes apart on one Sunday morning, so that spread is mostly *within*-occasion
+and understates how much these quantities move between genuinely separate occasions.
+
+Computed properly over the three distinct occasions:
+
+| quantity | between-**window** SD (used before) | between-**occasion** SD (used here) |
+|---|---|---|
+| `corr(depth, arrivals)` | 0.0516 | **0.0727** |
+| `corr(depth, cancels)` | 0.0585 | **0.0814** |
+| `corr(arrivals, cancels)` | 0.0243 | **0.0303** |
+
+Predicting a *new occasion* is a between-occasion question, so the wider figure is the right
+one and tolerances below use it. This **loosens** the test relative to earlier blocks, which
+is stated plainly because loosening a tolerance is the direction that flatters a model.
+
+### The known weakness of this test, declared in advance
+
+The between-occasion SD is estimated from **three occasions, all mornings** (Thu ~07:00,
+Sat ~08:51, Sun ~08:12–09:04 UTC). This recording is **Saturday afternoon**, ~15:10 UTC —
+a time of day with no prior data at all.
+
+So the tolerance may understate the true variability across times of day, and **if the test
+fails, "the tolerance was estimated from mornings only" is a live explanation.** Saying so
+now means it cannot be produced afterwards as a rescue.
+
+### Protocol
+
+**Three windows**, each 8 minutes, at 10-minute starts, five symbols concurrently —
+`BTCUSDT`, `ETHUSDT`, `SOLUSDT`, `XRPUSDT`, `DOGEUSDT` — identical to every prior capture.
+Three rather than five because within-morning windows proved highly correlated, so they
+estimate one occasion's mean and more would add little.
+
+The occasion's value is the mean over the three windows of the five-symbol mean. Any window
+with a sequence gap or suspect rows in any symbol is excluded whole and the exclusion
+reported; fewer than three usable windows is reported rather than worked around.
+
+### Predictions
+
+Each asks whether the frozen model predicts the new occasion within 1.5 between-occasion SD.
+
+**BS — the arrival side.** |model −0.1832 − new occasion mean| < **0.109**.
+
+**BT — the cancellation side.** |model −0.0752 − new occasion mean| < **0.122**.
+
+**BU — the co-movement.** |model +0.9154 − new occasion mean| < **0.046**.
+
+**BU is the one at risk.** Its tolerance is the tightest in absolute terms, the model sits
+1.42 SD from the pooled mean on it already, and it is the signature every model in this
+project has been weakest on. The three prior occasions read +0.9529, +0.9035 and +0.9586; if
+the new one lands near the top of that range the model misses.
+
+**BV — the data is clean.** Three usable windows, 480 rows each, no gaps and no suspect rows.
+
+### What each outcome means
+
+| BS/BT | BU | reading |
+|---|---|---|
+| pass | **pass** | The model predicts a genuinely new occasion — different day, different time of day — within known variability. That would be **the first out-of-sample success in this project**, and the pooled protocol would be vindicated as the fix rather than a better story. |
+| pass | **fail** | The depth structure generalises and the co-movement does not. Given the co-movement is the market's steadiest signature and the model's weakest, that would locate the remaining error precisely rather than diffusely. |
+| **fail** | — | The model does not generalise across occasions even at loosened tolerances. With the pooled protocol already applied, that would leave the target's instability and the model's structure as the two candidates, and would need a third occasion type to separate them. |
+
+### What even a full pass would not establish
+
+One venue, crypto spot, four occasions, 8-minute windows, one model seed-ensemble. The
+standing inference confound — both flows inferred from net depth changes — is untouched. And
+a pass at 1.5 between-occasion SD is a weaker statement than a pass at the tighter
+between-window figure earlier blocks used; the loosening is declared above and should be
+carried into how any pass is described.
