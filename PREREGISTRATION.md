@@ -2848,3 +2848,84 @@ standing inference confound — both flows inferred from net depth changes — i
 a pass at 1.5 between-occasion SD is a weaker statement than a pass at the tighter
 between-window figure earlier blocks used; the loosening is declared above and should be
 carried into how any pass is described.
+
+### Scored, 2026-08-08 — all three pass, but BU passes ONLY because I loosened the tolerance
+
+Capture: Saturday 2026-08-08, 15:05–15:33 UTC, three windows, five symbols, **480 rows
+each, 0 suspect, 0 gaps, none excluded — BV passes.** A genuinely new occasion: six days
+later and the first afternoon data this project has.
+
+| window | `corr(d,arr)` | `corr(d,can)` | `corr(arr,can)` |
+|---|---|---|---|
+| 1 | −0.1165 | +0.0003 | 0.9495 |
+| 2 | −0.1003 | −0.0354 | 0.9679 |
+| 3 | −0.1633 | −0.0527 | 0.9413 |
+| **occasion mean** | **−0.1267** | **−0.0293** | **0.9529** |
+
+| | model | occasion | gap | tolerance | |
+|---|---|---|---|---|---|
+| **BS** arrival side | −0.1832 | −0.1267 | 0.0565 | 0.109 | **pass** (0.78 SD) |
+| **BT** cancellation side | −0.0752 | −0.0293 | 0.0459 | 0.122 | **pass** (0.56 SD) |
+| **BU** co-movement | +0.9154 | +0.9529 | **0.0375** | 0.046 | **pass** (1.24 SD) |
+
+#### The sentence this result must not be reported without
+
+**BU passes only because of the tolerance change made before recording.**
+
+| basis | tolerance | verdict |
+|---|---|---|
+| between-**occasion** SD — used here, declared in advance | 0.0455 | **pass** by 0.0080 |
+| between-**window** SD — used by every earlier block | 0.0364 | **fail** by 0.0011 |
+
+The pre-registration stated that switching basis *loosens* the test and that loosening is
+the direction which flatters a model. It turns out to be **decisive for one of three
+verdicts**. The wider figure is the correct one — predicting a new occasion is a
+between-occasion question and the earlier basis was mostly within-occasion — but a reader
+who takes "three out of three" without this table has the wrong impression of how close it
+was.
+
+The pre-registration also named BU as the one at risk, for the right reason: prior occasions
+read +0.9529, +0.9035, +0.9586, and *"if the new one lands near the top of that range the
+model misses"*. It landed at **+0.9529**, and the model cleared by 0.008.
+
+#### The declared weakness did not bite
+
+The tolerance was estimated from three **morning** occasions and this was an afternoon. The
+new occasion's values sit **inside the prior range on all three quantities** (arr −0.1267
+against a prior span of −0.213 to −0.068), so time of day did not move them detectably. That
+was flagged in advance as a live explanation for a failure; there is no failure to explain,
+and the flag is discharged rather than needed.
+
+#### The pool, updated
+
+| quantity | grand mean (4 occasions) | between-occasion SD |
+|---|---|---|
+| `corr(depth, arrivals)` | −0.1365 | 0.0597 |
+| `corr(depth, cancels)` | −0.0459 | 0.0673 |
+| `corr(arrivals, cancels)` | +0.9420 | 0.0258 |
+
+Adding a fourth occasion moved every grand mean by less than 0.013 and left the SDs close to
+their three-occasion values. **The pooled target is more stable than the single-window
+target that broke the last calibration** — which is the pooled protocol's own claim, now with
+one independent confirmation rather than none.
+
+#### What this establishes
+
+**The first out-of-sample success in this project.** A model whose parameters were computed
+from an explicit account — not fitted — predicts a new occasion, at a different time of day
+six days later, within known between-occasion variability on all three signatures.
+
+And the protocol change is vindicated on its own terms: the previous calibration failed out
+of sample because it was fitted to a single window 1.4 SD into the tail, and this one, held
+to a pooled target, generalises.
+
+#### What it does not establish
+
+One venue, crypto spot, **four occasions**, all within ten days. The between-occasion SD is
+estimated from those four, so the tolerances remain soft and BU's pass depends on which of
+two defensible bases is used. Nothing here touches the standing inference confound — both
+flows are still inferred from net depth changes rather than observed as messages — so what
+generalises is agreement with a *measured* signature.
+
+**The honest next step is more occasions, not a stronger claim.** One success against three
+prior failures is a change of direction, not a settled result.
