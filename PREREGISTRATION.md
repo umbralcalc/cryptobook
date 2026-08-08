@@ -2479,3 +2479,78 @@ That no *other* change closes it — only that γ alone cannot. The co-movement 
 softer than a 1.5 SD band normally implies; a wider tolerance would put γ = 0.45 inside.
 And the whole block is a confirmation of a declared extrapolation, so its value is in the
 magnitudes, not the direction.
+
+---
+
+## Buying the specification — predictions fixed before `cfg/lob_burst.yaml` exists
+
+**Fixed 2026-08-03.** BG produced a specification rather than a direction: a change must buy
+**0.02–0.03 of co-movement without moving the depth correlations**. This block attempts it
+with the one lever the arithmetic says is still open.
+
+### The lever, and why it is the only one left
+
+Co-movement = Poisson ceiling − saturation, and BG confirmed the saturation is roughly
+constant in both driver variance and γ. So the ceiling is the only term available, and
+`ceiling = λ²·Var(A) / (N + λ²·Var(A))` has exactly two inputs: the driver's variance and
+the flow counts. Counts cannot move without moving depth, which is the thing being held.
+
+**So: raise the driver's variance again, to a value computed to close the gap.** At γ = 0.45
+the saturation gap is 0.0567, so clearing the 0.9134 floor needs a ceiling of 0.9701, which
+needs **Var(A) = 19.95**. Mean held at 4; for the AR(1) at φ = 0.8 the innovation becomes
+`gamma(0.089121, 0.022280)` — mean 4.000, variance 179.5. Driver CV rises to **1.12**, so
+activity becomes markedly burstier, which is at least the right direction for a market.
+
+### γ is selected on the DEPTH target, and co-movement is held out
+
+γ = **0.45**, chosen by a rule stated on the depth side alone: of the two depth-feasible
+values BG found, it is the nearer to the pooled grand mean (`corr(depth, arrivals)` −0.0989
+vs −0.1394, distance 0.041; γ = 0.60 is 0.076 away). **Co-movement plays no part in the
+selection** — which is what keeps BK a prediction rather than a fit.
+
+### My contamination, declared
+
+I have seen the full γ sweep at Var = 11.81, so I know γ = 0.45's co-movement shortfall is
+0.020 and I computed the variance to close exactly it. What is **not** seen: whether the
+saturation gap stays constant at a 69% larger variance — BC checked one 48% step and BG
+checked two γ values, neither at Var ≈ 20 — and whether the depth correlations stay in band
+when the driver becomes this bursty.
+
+### Predictions
+
+**BK — the co-movement clears its floor.** `corr(arrivals, cancels)` lands in
+**[0.905, 0.925]**, a band straddling the 0.9134 floor.
+
+Deliberately straddling: the point estimate is 0.9134 by construction, so a band that
+excluded the floor would be unfalsifiable in one direction. It fails short if the
+saturation grows with variance, and long if the ceiling algebra over-corrects.
+
+**BL — the arrival side stays in band.** `corr(depth, arrivals)` in **[−0.217, −0.062]**.
+
+**BM — the cancellation side stays in band.** `corr(depth, cancels)` in **[−0.146, +0.030]**.
+
+BL and BM are the "without moving the depth correlations" half of the specification, and
+they are **not** near-forced: a CV of 1.12 is a substantially different activity process,
+and the depth correlations moved measurably for the smaller variance step in BC.
+
+**BN — the book survives.** Drift **< 1.3**, spread sd **> 0.1**.
+
+Worth its own line here rather than as a formality: a burstier driver means larger swings in
+both flows, and one-sided steps are excluded from the spread average rather than counted, so
+a book that empties often would flatter the spread statistic while breaking.
+
+### What each outcome means
+
+| BK | BL/BM | reading |
+|---|---|---|
+| **pass** | **pass** | **All three pooled targets met simultaneously for the first time.** The specification BG produced would be satisfied, and by a value computed in advance rather than fitted. The honest next step is a fresh recording, since every prior in-sample success in this project has failed out of sample. |
+| **pass** | **fail** | The co-movement is buyable but the depth correlations pay for it, so the trade-off BG found in γ also exists in driver variance. That would make it a property of the model rather than of one parameter. |
+| **fail (short)** | — | The saturation is not constant at large variance — it grows. That contradicts BC and BG at a point neither tested, and would mean the ceiling account has a limited range rather than being general. |
+| **fail (long)** | — | The ceiling algebra over-corrects at high variance, most likely because the flows share more than the driver once it dominates. |
+
+### What even a full pass would not establish
+
+That the model is right — only that it meets three pooled targets, from three distinct
+occasions on one venue, with tolerances of 1.5 SD on a spread estimated from those three.
+The standing inference confound is untouched. Nothing is fitted: the variance was computed
+from the algebra and γ was selected on the depth side alone.
