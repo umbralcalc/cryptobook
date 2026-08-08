@@ -1,0 +1,259 @@
+# PERSISTENT DRIVER WITH ACTIVITY-DEPENDENT DAMPING.
+#
+# Predictions X, Y, Z, AA and AB were fixed in PREREGISTRATION.md and committed before
+# this file existed (5c1081e). Nothing here was adjusted against any of them.
+#
+# --- WHY PERSISTENCE, AND WHY IT IS NOT OPTIONAL -----------------------------
+#
+# Depth is a slow accumulator and every previous model drew its driver IID PER STEP.
+# depth_start(t) therefore depends on activity only up to t-1, while cancellation
+# depends on activity at t: independent by construction. corr(depth, cancels) sat near
+# zero in every model here not because the mechanism was absent but because the
+# measurement could not show one. That is also why prediction H's uncertainty claim was
+# withdrawn (bb6ebf4). Persistence is what makes the depth response observable at all.
+#
+# --- THE HOMOGENEITY TRAP, WHICH RULED OUT THE OBVIOUS DESIGN ----------------
+#
+# "One driver scaling every flow" CANNOT WORK. If arrivals, cancellations and
+# marketable flow all scale with act, the system is homogeneous in it and act cancels
+# out of the equilibrium entirely: limit_rate*act/(1 + q/s) = churn_rate*act gives
+# q* = s*(limit_rate/churn_rate - 1), with no activity term. Activity would rescale
+# TIME, not depth — a variance effect, not a mean effect. Something has to break the
+# homogeneity, and this file breaks it on the arrival damping.
+#
+# --- THE TWO CHANGES, AND NOTHING ELSE ---------------------------------------
+#
+#   1. act(t) = 0.8*act(t-1) + 0.2*innovation, with the innovation moment-matched so
+#      the driver'"'"'s STATIONARY marginal mean and variance equal the incumbent'"'"'s
+#      (mean 4, variance 8). Only the autocorrelation changes.
+#
+#   2. The damping scale shrinks with activity: s_eff = arrival_scale * act_ref / act,
+#      so q* is proportional to 1/act. Economically, a maker is less willing to sit in
+#      a long queue when the market is moving. At average activity this reduces
+#      EXACTLY to cfg/lob_arrivals.yaml.
+#
+# --- THE COMPETING EFFECT, DECLARED BEFORE RUNNING ---------------------------
+#
+# Marketable flow is deliberately LEFT UNSCALED — the pre-existing inconsistency that
+# quoting scales with activity and trading does not. It is left alone because changing
+# it would be a third simultaneous change, and because it pushes the other way: during
+# a LOW activity run the restoring force weakens while consumption continues, dragging
+# depth down and pushing corr(depth, activity) POSITIVE against change 2.
+#
+# Which effect dominates was NOT KNOWN when this file was written. Both directions are
+# recorded in PREREGISTRATION.md so neither can be presented afterwards as the one
+# expected.
+# A BURSTIER DRIVER, AT A VARIANCE COMPUTED TO CLOSE A MEASURED GAP.
+#
+# Predictions BK-BN were fixed in PREREGISTRATION.md and committed in 4b6d885 before this
+# file existed. cfg/lob_var.yaml and cfg/lob_damping.yaml both stay pinned.
+#
+# BG produced a SPECIFICATION rather than a direction: a change must buy 0.02-0.03 of
+# co-movement without moving the depth correlations. Co-movement = Poisson ceiling minus a
+# saturation that BG showed is roughly constant in both driver variance and gamma, so the
+# ceiling is the only term left, and it has two inputs -- driver variance and flow counts.
+# Counts cannot move without moving depth, which is the thing being held.
+#
+# At gamma = 0.45 the saturation gap is 0.0567, so clearing the 0.9134 floor needs a
+# ceiling of 0.9701 and hence Var(A) = 19.95. Mean held at 4, so only burstiness changes:
+# the driver's CV rises from 0.86 to 1.12.
+#
+# GAMMA IS SELECTED ON THE DEPTH TARGET ALONE -- of the two depth-feasible values BG found,
+# 0.45 is the nearer to the pooled grand mean. Co-movement plays no part in that choice,
+# which is what keeps BK a prediction rather than a fit.
+#
+# Predictions BC-BF were fixed in PREREGISTRATION.md and committed in 540607e before this
+# file existed. cfg/lob_damping.yaml stays pinned and unmodified.
+#
+# ── ONE NUMBER MOVES, AND IT WAS NOT SWEPT ────────────────────────────────────
+#
+# Pooling seven recorded windows showed the model is within ordinary market variation on
+# both depth correlations (1.1-1.6 SD) and 3.6 SD LOW on co-movement, against the market's
+# steadiest signature. The gap turns out to be arithmetic rather than mechanistic.
+#
+# With arr ~ Poisson(la*A) and can ~ Poisson(lc*A) sharing the driver A, independent
+# Poisson noise caps the correlation:
+#
+#   corr = la*lc*Var(A) / (N + la*lc*Var(A))
+#
+# At the shipped driver (mean 4, variance 8) and ~26 counts/step that ceiling is 0.9286.
+# THE MARKET SITS AT 0.9499 -- ABOVE THE MODEL'S CEILING. No mechanism reaches it while the
+# variance stays at 8; the flows are coupled, they simply lack enough SHARED variation
+# relative to their own Poisson noise.
+#
+# Setting the ceiling equal to the market grand mean gives Var(A) = 11.67. For the AR(1) at
+# phi = 0.8 the stationary variance is Var(innovation)/9, so the innovation must have mean
+# 4 and variance 105.01: gamma(0.152367, 0.038092).
+#
+# THE DRIVER'S MEAN IS UNCHANGED AT 4.0. Only its variance moves, so nothing else in the
+# model is rescaled -- and everything else, gamma included, is inherited from
+# cfg/lob_damping.yaml untouched.
+#
+# This is a point prediction from algebra, not a fit. There is no sweep here and no
+# adjustable parameter: if the account is right, BC lands without anyone aiming at it.
+main:
+  partitions:
+  - name: lob_burst
+    params:
+      limit_rate: [2.0]
+      arrival_decay: [0.35]
+      # NO ATTRITION. Cancellation is pure churn; a depth-proportional term here is
+      # exactly what this variant exists to avoid. Kept as a named zero rather than
+      # deleted, so the absence is visible and a stray reintroduction is obvious.
+      cancel_rate: [0.0]
+      # The queue depth at which posting into a level halves.
+      #
+      # An ARBITRARY value, chosen to put mean depth in the same range as the
+      # attrition model's. It is NOT fitted to market data and must not be described
+      # as such — it is the parameterisation the pre-registered G/H/I scores were
+      # measured at, which is the only reason it is pinned. Fitting it to anything
+      # would need its own pre-registration.
+      arrival_scale: [19.0]
+      # RE-SET ONCE, ON MEAN DEPTH ALONE — 1.15 in cfg/lob_arrivals.yaml, 1.05 here.
+      #
+      # The activity-dependent damping thins the book, so at the inherited 1.15 mean
+      # depth was 188.9 against the 227.8-235.9 the previous two models produced. The
+      # one adjustment PREREGISTRATION.md permits was used. The sweep was on DEPTH ONLY
+      # and no correlation was computed while choosing: 0.85 -> 340.3, 0.90 -> 299.1,
+      # 0.95 -> 280.5, 1.00 -> 259.4, 1.05 -> 235.4.
+      #
+      # Nothing was adjusted against X, Y, Z, AA or AB, and this is the ONLY value that
+      # moved after 5c1081e fixed the predictions.
+      churn_rate: [1.075]
+      # THE INNOVATION, not the driver. The driver is now AR(1) and these are the
+      # parameters of what feeds it, chosen so the DRIVER's stationary marginal
+      # matches the incumbent's exactly.
+      #
+      # act(t) = persistence*act(t-1) + (1-persistence)*innovation, so the stationary
+      # mean is the innovation mean and the stationary variance is
+      # (1-p)/(1+p) * Var(innovation). At p = 0.8 that is Var/9, so the innovation
+      # variance must be 9x the target to land on it.
+      #
+      # cfg/lob_arrivals.yaml drives with gamma(2, 0.5): mean 2/0.5 = 4, variance
+      # 2/0.25 = 8. Target here is the SAME mean 4 and variance 8, so the innovation
+      # needs mean 4 and variance 72: gamma(shape, rate) with shape/rate = 4 and
+      # shape/rate^2 = 72 gives rate = 1/18 and shape = 4/18.
+      #
+      # This is the control that makes X interpretable. The driver's marginal is held
+      # FIXED and only its autocorrelation changes, so nothing measured here can be
+      # attributed to a busier or burstier market.
+      activity_shape: [0.089121]
+      activity_rate: [0.022280]
+      # PRE-REGISTERED at 0.8, chosen a priori for a correlation time of ~5 steps —
+      # comparable to the 6-23 step depth relaxation pkg/stability measures, so the
+      # driver is slow enough for depth to follow and fast enough to vary within the
+      # scored window. Not fitted to anything.
+      persistence: [0.8]
+      # The driver's stationary mean, so the activity-dependent damping below reduces
+      # EXACTLY to cfg/lob_arrivals.yaml at average activity.
+      act_ref: [4.0]
+      # THE SWEPT PARAMETER. s_eff = arrival_scale * (act_ref/act)^damping_gamma, so
+      # gamma = 1 is cfg/lob_persistent.yaml exactly and gamma = 0 is an
+      # activity-independent damping carrying a persistent driver — which is NOT
+      # cfg/lob_arrivals.yaml, whose driver is iid.
+      #
+      # Swept over the grid fixed in PREREGISTRATION.md before this file existed:
+      # {0.0, 0.2, 0.4, 0.5, 0.6, 0.8, 1.0}. The value shipped here is the one the
+      # stated selection rule chose.
+      damping_gamma: [0.45]
+      market_rate: [1.2]
+      market_size: [4.0]
+      half: [0.5]
+      empty_spread: [99.0]
+      shock_step: [-1.0]
+      shock_size: [0.0]
+    init_state_values:
+      [8, 6, 4, 3, 2, 1, 1, 1,
+       8, 6, 4, 3, 2, 1, 1, 1,
+       0, 0, 0, 52, 2,
+       4.0, 0]
+    state_history_depth: 1
+    seed: 20260831
+  expressions:
+  - partition: lob_burst
+    fields:
+    - {name: bid, width: 8}
+    - {name: ask, width: 8}
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: depth_start}
+    - {name: spread_ticks}
+    # Promoted so the AR(1) driver can read its own previous value through lag().
+    # Read BARE, not through lag(). A bare field name is already row 0 — the previous
+    # step's committed output — so lag(x, 1) would reach TWO steps back and build an
+    # AR(2) with a zero lag-1 autocorrelation. See DECISIONS.md.
+    - {name: prev_activity}
+    # THE VALIDITY PRECONDITION, measured rather than assumed. Counts the levels at
+    # which the min() clip bound this step. PREREGISTRATION.md requires this under 5%
+    # of level-steps; above that Y and Z are recorded INCONCLUSIVE, because a binding
+    # clip ties cancellation to depth mechanically and would score the clip rather
+    # than the mechanism. This is the fault the churn block recorded and did not
+    # measure.
+    - {name: clip_binds}
+    bindings:
+    # THE SHARED DRIVER. One draw per step, applied to both streams — this is the
+    # entire coupling. shared() because a bare gamma of two scalars would have an
+    # ambiguous width, and because the whole point is that one value reaches both.
+    #
+    # CAREFUL: the engine's gamma(alpha, beta) is (shape, RATE) — verified against
+    # pkg/rng, where gamma(2, 0.5) has mean 4.0, not 1.0. So mean = shape/rate and
+    # variance = shape/rate². These values give MEAN ACTIVITY 4, not 1. An earlier
+    # comment in cfg/lob_churn.yaml claimed the second argument was a scale giving
+    # mean 1; that was wrong. It changes no fitted result — the parameters were
+    # fitted with this activity in place — but to vary burstiness at fixed mean
+    # activity, shape and rate must move TOGETHER (rate = shape gives mean 1).
+    - {name: activity, expr: "shared(persistence * prev_activity + (1 - persistence) * gamma(activity_shape, activity_rate))"}
+
+    # THE STABILISER. slice(bid, i, 1) reads THIS level's resting volume inside the
+    # lane, so the damping is per level rather than driven by total depth.
+    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(bid, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * activity * dt / (1 + slice(ask, i, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
+
+    # Churn is distributed across levels the same way arrivals are, because it is
+    # the same quotes being pulled that were posted. Attrition stays proportional to
+    # what is resting. min(...) clips: volume cannot go negative.
+    - {name: churn_bid, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: churn_ask, expr: "each(8, i, poisson(churn_rate * exp(-arrival_decay * i) * activity * dt))"}
+    - {name: can_bid, expr: "min(bid, churn_bid + poisson(cancel_rate * bid * dt))"}
+    - {name: can_ask, expr: "min(ask, churn_ask + poisson(cancel_rate * ask * dt))"}
+
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+
+    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+
+    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+    - {name: next_bid, expr: "rest_bid - hit_bid"}
+    - {name: next_ask, expr: "rest_ask - hit_ask"}
+
+    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+    - {name: idx, expr: "each(8, i, i)"}
+    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+    outputs:
+    - "next_bid"
+    - "next_ask"
+    - "sum(arr_bid) + sum(arr_ask)"
+    - "sum(can_bid) + sum(can_ask)"
+    - "sum(hit_bid) + sum(hit_ask)"
+    - "sum(bid) + sum(ask)"
+    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+    - "activity"
+    - "sum(where(churn_bid > bid, 1, 0)) + sum(where(churn_ask > ask, 1, 0))"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

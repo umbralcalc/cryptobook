@@ -2554,3 +2554,62 @@ That the model is right — only that it meets three pooled targets, from three 
 occasions on one venue, with tolerances of 1.5 SD on a spread estimated from those three.
 The standing inference confound is untouched. Nothing is fitted: the variance was computed
 from the algebra and γ was selected on the depth side alone.
+
+### Scored, 2026-08-03 — both halves of the specification fail, and BC's constancy has a range
+
+| | measured | wanted | |
+|---|---|---|---|
+| driver variance realised | 19.82 | 19.95 | construction correct |
+| **BK** `corr(arrivals, cancels)` | **+0.8951** (SE 0.0011) | [0.905, 0.925] | **FAIL, short** |
+| **BL** `corr(depth, arrivals)` | **−0.0284** (SE 0.0064) | [−0.217, −0.062] | **FAIL** |
+| **BM** `corr(depth, cancels)` | **+0.0746** (SE 0.0070) | [−0.146, +0.030] | **FAIL** |
+| **BN** drift / spread sd | 0.9995 / 0.9050 | < 1.3 / > 0.1 | pass |
+
+#### The saturation is NOT constant at large variance, which qualifies BC and BG
+
+| Var(A) at γ = 0.45 | Poisson ceiling | achieved | gap |
+|---|---|---|---|
+| 11.81 | 0.9505 | 0.8938 | **0.0567** |
+| 19.82 | 0.9699 | 0.8951 | **0.0748** |
+
+**The ceiling rose +0.0194 and the co-movement rose +0.0013.** The lever has essentially
+stopped working: the saturation absorbed 93% of the gain.
+
+BC found the penalty constant over 8 → 11.81 and BG confirmed it across γ, and this block
+was built on that. It holds over that range and **fails beyond it** — the pre-registered
+"fail short" row said exactly this would mean *the ceiling account has a limited range
+rather than being general*, and that is now the reading. The account is not wrong; its
+domain is narrower than two blocks assumed, and neither of those blocks tested this far out.
+
+#### And the lever costs the depth side heavily
+
+`corr(depth, arrivals)` moved **+0.0705** and `corr(depth, cancels)` **+0.0794** for the
+same variance step — both out of band and toward positive. A burstier driver pushes depth
+and both flows up together, so the shared-driver *positive* coupling starts to swamp the
+damping's *negative* one.
+
+**So driver variance trades the same two things against each other that γ does**, in the
+same direction, and saturates before reaching the target. Two parameters, one trade-off.
+
+#### What this establishes
+
+**The specification BG produced cannot be bought with driver variance.** Both terms of the
+ceiling account degrade at once: the gain saturates and the depth correlations pay for what
+little arrives.
+
+Taken with BG, the model does not reach all three pooled targets anywhere tested in the
+(γ, Var(A)) plane, and the reason is structural rather than a matter of settings — both
+axes move co-movement and the depth correlations the same way, so there is no direction in
+that plane that improves one without costing the other.
+
+#### What it does not establish
+
+The joint plane is **not mapped**: five γ at one variance, three variances at one or two γ.
+A region away from both axes is untested, though the monotonicity BH established in γ and
+the direction seen here make a hidden feasible pocket unlikely rather than excluded.
+
+Nor does it establish that no *other* change works — only that neither parameter this model
+exposes does. The counts `N` remain the untouched third input to the ceiling, and they were
+excluded here because raising them moves depth, which was the thing being held. Whether
+raising counts *and* re-setting depth reaches the target is a different block, and it would
+have to hold depth by a route other than the damping.
