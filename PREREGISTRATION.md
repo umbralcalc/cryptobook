@@ -2689,3 +2689,74 @@ That the model is right — only that it meets three pooled targets from three d
 occasions on one venue, at 1.5 SD tolerances on a spread estimated from those three. Nothing
 is fitted: both rates move by a factor computed from the algebra, and `churn_rate`'s
 permitted re-set is on depth alone.
+
+### Scored, 2026-08-03 — all four pass, and the matched pair identifies the saturation
+
+| | measured | wanted | |
+|---|---|---|---|
+| **BO** saturation gap | **0.0574** | [0.045, 0.070] | **pass** |
+| **BP** `corr(arrivals, cancels)` | **+0.9154** (SE 0.0006) | [0.905, 0.925] | **pass** |
+| **BQ** `corr(depth, arrivals)` | **−0.1832** | [−0.217, −0.062] | **pass** |
+| **BQ** `corr(depth, cancels)` | **−0.0752** | [−0.146, +0.030] | **pass** |
+| **BR** drift / spread sd / depth | 1.0001 / 0.4380 / 233.7 | — | **pass** |
+
+`churn_rate` took its single permitted adjustment: the scaled ratio left depth at 253.6,
+outside the band, because the marketable term does not scale with the rates. Swept on depth
+alone — 1.817 → 253.6, 1.900 → 233.7, 1.960 → 221.6 — and 1.900 selected. No correlation was
+computed while choosing.
+
+#### The matched pair is the result, not the pass
+
+Two configs at essentially the same Poisson ceiling, reached by different routes:
+
+| | N·V | ceiling | achieved | **saturation gap** |
+|---|---|---|---|---|
+| `lob_burst` — via **variance** | 515 | 0.9699 | 0.8951 | **0.0748** |
+| `lob_counts` — via **counts** | 573 | 0.9728 | 0.9154 | **0.0574** |
+| (`lob_var`, N = 26) | 307 | 0.9505 | 0.8938 | 0.0567 |
+
+**The saturation is a property of the driver's spread, not of the ceiling.** Raising counts
+at fixed variance leaves it at 0.057, exactly where it sat at N = 26; raising variance to
+the same ceiling drove it to 0.075. Neither arm could have shown this alone, and it is why
+the block was built as a pair.
+
+That also rehabilitates BC's account rather than merely bounding it: the constancy claim was
+right about the *mechanism* and wrong only in being stated over the wrong variable. The
+penalty is constant in **counts**, not in the ceiling.
+
+#### All three pooled targets are met at once — for the first time — but read the margin
+
+| | model | pooled grand mean | distance |
+|---|---|---|---|
+| `corr(depth, arrivals)` | −0.1832 | −0.1394 ± 0.0516 | **0.85 SD** |
+| `corr(depth, cancels)` | −0.0752 | −0.0577 ± 0.0585 | **0.30 SD** |
+| `corr(arrivals, cancels)` | +0.9154 | +0.9499 ± 0.0243 | **1.42 SD** |
+
+All inside 1.5 SD. **But the co-movement clears its floor by 0.0020** against a market
+between-window SD of 0.0243 — it sits at the very edge of the tolerance, and a slightly
+tighter band would exclude it. The depth correlations are comfortable; the co-movement is
+not, and calling this "three targets met" without that sentence would be the flattering
+reading of a marginal one.
+
+#### What this establishes
+
+That a pure-config model can hold all three pooled signatures simultaneously, at parameters
+computed from an explicit account rather than fitted — the rate scaling came from the
+ceiling algebra and only `churn_rate` moved, on depth alone.
+
+And, more durably than the pass: **the saturation penalty is caused by the driver's spread
+interacting with the arrival damping, not by the ceiling itself.** That was established by
+construction, in a designed comparison, and it explains BC, BG and BK's results as one
+phenomenon rather than three.
+
+#### What it does not establish, and the next step fixed in advance
+
+Nothing about out-of-sample behaviour. **Every prior in-sample success in this project has
+failed out of sample**, and this one is marginal on the very signature that has always been
+weakest. The pre-registration committed to a fresh recording as the honest next step and
+that stands — with the pooled protocol this time, so the comparison is against a grand mean
+rather than a single window.
+
+The tolerances are 1.5 SD on a between-window spread estimated from **three distinct
+occasions** on one venue, so they are softer than they look. The standing inference confound
+is untouched.
