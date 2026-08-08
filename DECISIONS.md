@@ -2429,3 +2429,83 @@ should exist for the *cancellation-definition defect* those models exposed: volu
 by the age cap is not counted as a cancellation, so model and market series are not
 like-for-like for any age model. That is a real defect in the comparison, it is
 model-internal, and it is currently recorded nowhere that runs.
+
+## Two defects in the age models, one of which voids a scored block
+
+The claims-debt sweep named a cancellation-definition defect as unrecorded. Fixing it
+properly meant reading `pkg/feed/bucket.go` rather than reasoning about it, and that turned
+up a second, worse defect in the same file.
+
+### Defect one: departures that were reported nowhere
+
+The market's cancellation series is derived at `pkg/feed/bucket.go` as
+`cancelled = removed - executed`, with `executed` capped by the volume actually traded at
+that price. A diff feed cannot see *why* an order left, so **every untraded departure is a
+cancellation**. In the capped age models, volume leaving by the age cap left the book
+without a trade and appeared in no output column — so model and market were not measuring
+the same quantity.
+
+It mattered in inverse proportion to how well the mechanism was working. Expiry is the
+maximally age-weighted cancellation channel — volume that survived every cohort — which is
+exactly what a time-in-queue mechanism exists to test:
+
+| config | expiry as share of cancellations | why |
+|---|---|---|
+| `lob_ages` | **0** | oldest cohort is absorbing; nothing can leave by the cap |
+| `lob_ages_finite` | 0.0013 | `haz0` 0.18 rises to 0.81 by cohort 7, so little survives |
+| `lob_ages12` | **0.43** | `haz0` lowered to 0.016, so most volume outlives the hazard |
+
+**`cfg/lob_ages.yaml` was never defective**, and the correction is therefore NOT uniform —
+adding an expiry term to the absorbing model would double-count. That is why the fix is a
+law rather than a patch.
+
+### Defect two: depth the arrival damping could not see
+
+`cfg/lob_ages12.yaml` summed each level's depth with a slice width hardcoded to **8** while
+`ncoh` was **12**. At eight cohorts the literal and the parameter coincided, so the bug was
+invisible; at twelve it hid each level's four oldest cohorts — **22.4% of resting volume** —
+from the arrival damping. That is dynamics, not reporting: the damping denominator is what
+suppresses arrivals as a level fills, so arrivals were under-damped throughout.
+
+**This voids AX–BB.** The block pre-registered that *only the cohort count moves* and that
+the arrival side is *inherited unchanged*; it was not. Corrected, mean depth at the same
+`haz0` falls 233.2 → **214.7**, below the 227.8–235.9 band, so the precondition that was
+satisfied "for the first time in three attempts" is not satisfied. AX's pass is withdrawn.
+
+Nothing is rehabilitated by this. `corr(arrivals, cancels)` falls +0.180 → **+0.069**,
+further from the +0.85 target; `corr(depth, arrivals)` stays wrong-signed. **Every failure
+in that block fails at least as badly after correction** — which is the check worth stating,
+because a correction that only ever helps the author's case deserves suspicion.
+
+Re-scoring needs a **fresh pre-registration**: `haz0` is the single value the block permits
+to be re-set on mean depth, and it was already spent against a model that was not this one.
+Re-selecting it now would be tuning after the result.
+
+**AP–AS and AT–AW stand.** Both were checked: `lob_ages` has no expiry channel at all, and
+`lob_ages_finite` runs at `ncoh` 8 where the width literal was correct, with an expiry share
+of 0.13% that moves its co-movement by 0.0001. Neither verdict changes.
+
+### The fix is two laws, not two patches
+
+Both defects are the same failure — the model losing track of volume, silently, where no
+test could see it. So `pkg/conservation` pins invariants instead of behaviour:
+
+    depth(t+1) - depth(t) = arrivals(t) - cancellations(t) - trades(t)
+    the depth the damping reads = all resting volume
+
+The first is the market aggregator's own decomposition, which is what makes it the
+like-for-like condition rather than a tidiness rule. Both are checked against every
+`cfg/lob_ages*.yaml` **discovered on disk**, because a hand-maintained list is precisely
+what let one defect sit in two files while a third was clean. The second parses the slice
+width out of the config and measures its coverage against the real state, so hardcoding it
+back to a literal fails with a number rather than passing quietly.
+
+Both guards were verified to fail on their own defect before being trusted: reintroducing
+the width bug drops coverage to 0.776, and reintroducing the expiry omission gives a
+36.3-per-step residual against a 1e-9 bound. A guard that has never been seen to fail is
+not evidence.
+
+**The expiry fix changes no dynamics** — `n_cancel` is read by no binding — and that was
+confirmed rather than assumed: mean depth is unchanged across all three configs. The width
+fix does change dynamics, and only in `lob_ages12`; the two eight-cohort models are
+bit-identical after it, which is what a correct fix to an `ncoh`-dependent bug must do.

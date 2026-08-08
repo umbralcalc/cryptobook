@@ -98,7 +98,7 @@ main:
       nlvl: [8.0]
     init_state_values:
       [0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.6667, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.3333, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.1667, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833, 0.0833,
-       0, 0, 0, 52, 2, 4.0, 0]
+       0, 0, 0, 52, 2, 4.0, 0, 0]
     state_history_depth: 1
     seed: 20260822
   expressions:
@@ -112,14 +112,17 @@ main:
     - {name: spread_ticks}
     - {name: prev_activity}
     - {name: oldest_share}
+    - {name: expired_vol}
     bindings:
     - {name: activity, expr: "shared(persistence * prev_activity + (1 - persistence) * gamma(activity_shape, activity_rate))"}
     # Per-slot coordinates, computed once.
     - {name: coh, expr: "each(192, i, i - ncoh * floor(i / ncoh))"}
     - {name: lvl, expr: "each(192, i, floor(i / ncoh) - nlvl * floor(i / (ncoh * nlvl)))"}
     - {name: side, expr: "each(192, i, floor(i / (ncoh * nlvl)))"}
-    # Depth per (side, level): 16 sums of 8 cohorts each.
-    - {name: lvl_depth, expr: "each(16, j, sum(slice(ages, j * ncoh, 8)))"}
+    # Depth per (side, level): 16 sums of ncoh cohorts each. The width MUST be ncoh --
+    # it was hardcoded to 8 here, which was invisible at ncoh 8 and silently hid 22.4%
+    # of resting volume from the arrival damping at ncoh 12. pkg/conservation tests it.
+    - {name: lvl_depth, expr: "each(16, j, sum(slice(ages, j * ncoh, ncoh)))"}
     # THE INHERITED ARRIVAL SIDE. Damped by that level's total depth, exactly as in
     # cfg/lob_damping.yaml, and drawn per (side, level).
     - {name: arr_lvl, expr: "each(16, j, poisson(limit_rate * exp(-arrival_decay * (j - nlvl * floor(j / nlvl))) * activity * dt / (1 + slice(lvl_depth, j, 1) * pow(activity / act_ref, damping_gamma) / arrival_scale)))"}
@@ -142,6 +145,15 @@ main:
     - {name: sweep, expr: "each(192, i, where(slice(side, i, 1) > 0, buy_size, sell_size))"}
     - {name: hit, expr: "clamp(sweep - cum, 0, survived)"}
     - {name: left, expr: "survived - hit"}
+    # VOLUME LEAVING BY THE AGE CAP IS A CANCELLATION. See cfg/lob_ages_finite.yaml for the
+    # argument; it matters FAR more here. This config lowered haz0 to 0.016 to reach the
+    # regime, and at that hazard most volume survives all twelve cohorts and leaves by the
+    # cap instead of by the mechanism: expiry is ~43% of all departures, against 0.13% in
+    # the eight-cohort variant. The AX-BB co-movement was measured without it and read
+    # 0.1795 where the honest number is 0.1233 — so the mechanism failed HARDER than
+    # recorded, not less. Lowering haz0 to reach the regime is what turned the hazard into
+    # a mostly-fixed twelve-step conveyor belt.
+    - {name: expired, expr: "sum(where(coh == ncoh - 1, left, 0))"}
     # AGE BY ONE. Cohort 0 refills from arrivals at that (side, level); cohort c inherits
     # what survived in cohort c-1.
     # THE FINITE PATIENCE HORIZON, and the only difference from cfg/lob_ages.yaml.
@@ -150,7 +162,7 @@ main:
     # unbounded reservoir whose fixed per-unit hazard made the absorbing variant bistable.
     - {name: aged, expr: "each(192, i, where(slice(coh, i, 1) == 0, slice(arr_lvl, floor(i / ncoh), 1), slice(left, i - 1, 1)))"}
     # Observables.
-    - {name: next_depth, expr: "each(16, j, sum(slice(aged, j * ncoh, 8)))"}
+    - {name: next_depth, expr: "each(16, j, sum(slice(aged, j * ncoh, ncoh)))"}
     - {name: occ, expr: "where(next_depth > 0, 1, 0)"}
     - {name: occ_bid, expr: "slice(occ, 0, 8)"}
     - {name: occ_ask, expr: "slice(occ, 8, 8)"}
@@ -165,12 +177,13 @@ main:
     outputs:
     - "aged"
     - "sum(arr_lvl)"
-    - "sum(cancelled)"
+    - "sum(cancelled) + expired"
     - "sum(hit)"
     - "sum(ages)"
     - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
     - "activity"
     - "oldest / max(sum(ages), 0.000001)"
+    - "expired"
   simulation:
     output_condition: {type: every_step}
     output_function: {type: stdout}

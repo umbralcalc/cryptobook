@@ -2093,6 +2093,40 @@ market number — `haz0` moves only on mean depth. A margin under ~0.01 is not a
 
 ### Scored, 2026-08-03 — AX passes, the rest fails, and my precondition was badly designed
 
+> **VOID, 2026-08-08. THE SCORING BELOW WAS MEASURED AGAINST A MODEL THAT DID NOT
+> IMPLEMENT THIS BLOCK.** `cfg/lob_ages12.yaml` summed each level's depth with a slice
+> width hardcoded to 8 while `ncoh` was 12, so the arrival damping — the denominator that
+> suppresses arrivals as a level fills — could not see each level's four oldest cohorts,
+> **22.4% of all resting volume**. Arrivals were therefore under-damped throughout.
+>
+> That directly contradicts this block's own pre-registered premise, quoted from the config
+> header: *"ONLY THE COHORT COUNT MOVES: 8 -> 12. Hazard shape, arrival side and driver are
+> all inherited unchanged."* The arrival side was **not** inherited unchanged. This is a bug
+> against the stated design, not a parameter choice, so the block did not test AX–BB.
+>
+> With the width corrected, at the same `haz0` = 0.016:
+>
+> | | as scored | corrected | effect |
+> |---|---|---|---|
+> | precondition 1, mean depth in 227.8–235.9 | 233.2 | **214.7** | **now FAILS, below the band** |
+> | BA `corr(arrivals, cancels)` | +0.180 | **+0.069** | fails harder |
+> | AY `corr(depth, arrivals)` | +0.312 | +0.295 | still wrong-signed |
+>
+> **AX's pass is withdrawn.** The ceiling it cleared was inflated by the under-damping, and
+> the depth that landed in the band no longer does. The failures below are not rehabilitated
+> — every one of them fails at least as badly after correction — so nothing here is being
+> withdrawn because it was inconvenient.
+>
+> A separate defect applied to `sum(cancelled)` in the same file: volume leaving by the age
+> cap was counted as a cancellation nowhere, while the market counts every untraded
+> departure as one. That inflated BA further, from a true **+0.069** to the +0.180 recorded.
+> Both defects are now pinned by `pkg/conservation`, which fails on either.
+>
+> **Scoring this block properly needs a fresh pre-registration**, because `haz0` is the one
+> value the block permits to be re-set on mean depth and it was already spent — against a
+> model that was not this one. Re-selecting it now and re-scoring would be tuning after the
+> result. The text below is left exactly as written. See DECISIONS.md.
+
 **AX PASSED.** The mean-depth ceiling is **291.4** against a predicted **256** — within 14%
 — and comfortably clears 235.9. `haz0` = 0.016 gives an ensemble mean depth of **233.2**,
 inside the band. **Precondition 1 is satisfied for the first time in three attempts**, and
