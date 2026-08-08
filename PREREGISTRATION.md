@@ -2328,3 +2328,92 @@ than the one-target problems every block so far has been.
 Nothing here is fitted: the one number that moved was computed from algebra before the
 config ran, and it produced the predicted *change* while revealing a constant the algebra
 did not contain.
+
+---
+
+## Can any γ hold both targets? Predictions fixed before `cfg/lob_gamma.yaml` exists
+
+**Fixed 2026-08-03.** The first **two-target** block: every previous one asked whether a
+mechanism could hit one signature, and this asks whether one parameter can hit two that BC
+showed are coupled through it.
+
+### My contamination, declared, and it is heavy
+
+BC established that co-movement ≈ Poisson ceiling − saturation, with the saturation stable
+in driver variance. The γ sweep at Var(A) = 8 is already recorded. Together those let me
+**extrapolate the whole answer**:
+
+| γ | `d/arr` | `d/can` | `arr/can` at Var 8 | saturation gap |
+|---|---|---|---|---|
+| 0.0 | +0.216 | +0.357 | 0.8872 | 0.0414 |
+| 0.4 | −0.092 | +0.014 | 0.8771 | 0.0515 |
+| 0.6 | −0.224 | −0.120 | 0.8629 | 0.0657 |
+| 1.0 | −0.387 | −0.259 | 0.8183 | 0.1103 |
+
+At the raised variance the ceiling is 0.9505, so co-movement ≈ 0.9505 − gap: about **0.909
+at γ = 0** falling to 0.885 at γ = 0.6. The 1.5 SD floor is **0.9134**. The depth bands are
+satisfied only around γ ≈ 0.4–0.6, where co-movement is ~0.89–0.90.
+
+**So I expect the sets to be disjoint and I can say roughly by how much.** This block is
+therefore mostly a *confirmation of an extrapolation*, not a blind test, and is labelled so.
+
+### What is genuinely uncertain, and where the prediction earns its keep
+
+The **margin**. If co-movement peaks at 0.909 against a floor of 0.9134, the sets miss by
+**0.004** — a hair, and a very different conclusion from missing by 0.05. Whether the
+saturation gap at γ = 0 holds its Var-8 value of 0.041 at the raised variance is untested;
+BC only checked γ = 0.6.
+
+That is what BG is scored on, and it is why the prediction is stated as a number rather
+than a direction.
+
+### The sweep
+
+γ ∈ **{0.0, 0.15, 0.30, 0.45, 0.60}**, fixed. Driver variance held at the raised **11.81**
+and everything else inherited from `cfg/lob_var.yaml`. No parameter is fitted and none is
+re-set on depth — this is a sweep to map a trade-off, not to select a model.
+
+Targets are the pooled grand means at 1.5 between-window SD, per the protocol change:
+
+	corr(depth, arrivals)   in [−0.217, −0.062]
+	corr(depth, cancels)    in [−0.146, +0.030]
+	corr(arrivals, cancels) ≥ 0.9134
+
+### Predictions
+
+**BG — the sets are disjoint, and narrowly.** No γ in the grid satisfies all three. The
+**maximum co-movement across the grid lands in [0.900, 0.915]** — below the floor, but by
+less than 0.015.
+
+The structural claim and the quantitative one in a single prediction. It fails if some γ
+satisfies all three, and it fails if the maximum lands outside that band even while staying
+below the floor — the second being the more likely miss and the more informative.
+
+**BH — the trade-off is monotone.** `corr(depth, arrivals)`, `corr(depth, cancels)` and
+`corr(arrivals, cancels)` all **decrease** as γ increases across the grid.
+
+Declared the weak one: it is what the Var-8 sweep already shows. It is scored because
+monotonicity is what makes "no γ works" a statement about the whole interval rather than
+about five points — without it, an untested γ between grid points could satisfy both.
+
+**BI — the depth window is non-empty.** At least one γ in the grid satisfies **both** depth
+bands, so the disjointness in BG is a real trade-off rather than an artefact of the depth
+targets being unreachable too.
+
+**BJ — the book survives at every γ.** Drift **< 1.3** and spread sd **> 0.1** at all five.
+
+### What each outcome means
+
+| BG | BI | reading |
+|---|---|---|
+| **pass** | pass | One parameter cannot hold both signatures, and the miss is small. **The model is one structural change away, not a rebuild** — and the size of the gap says how much a change would have to buy. |
+| **fail (some γ works)** | pass | A γ exists satisfying all three, which the extrapolation said should not. The saturation account would be wrong somewhere, and finding where matters more than the γ. |
+| **fail (max outside band)** | pass | Direction right, magnitude wrong — the saturation gap does not hold its Var-8 value across γ. That would qualify BC's "constant penalty" finding, which was only measured at one γ. |
+| — | **fail** | No γ satisfies the depth bands at the raised variance, so BC's BD/BE passes were specific to γ = 0.6 and the raised variance narrowed the depth window. That would make this a one-target problem again. |
+
+### What even a full pass would not establish
+
+That no *other* change closes the gap — only that γ alone cannot. Model-internal, 32-member
+ensemble means at 8000 steps, against a grand mean from three distinct occasions on one
+venue. Tolerances are 1.5 SD of a between-window spread estimated from those three, so they
+are softer than they look.
