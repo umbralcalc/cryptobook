@@ -2509,3 +2509,40 @@ not evidence.
 confirmed rather than assumed: mean depth is unchanged across all three configs. The width
 fix does change dynamics, and only in `lob_ages12`; the two eight-cohort models are
 bit-identical after it, which is what a correct fix to an `ncoh`-dependent bug must do.
+
+## Time-in-queue cancellation is eliminated
+
+The fifth mechanism candidate is closed after three variants. The verdicts, with the
+corrections above applied:
+
+| variant | block | verdict |
+|---|---|---|
+| absorbing oldest cohort (`lob_ages`) | AP–AS | INCONCLUSIVE — could reach neither the depth band nor its own validity window |
+| finite patience (`lob_ages_finite`) | AT–AW | INCONCLUSIVE — the residence cap sets a hard depth ceiling |
+| twelve cohorts (`lob_ages12`) | AX–BB | **VOID** — scored against a model whose arrival damping could not see 22.4% of the book |
+
+**Why not re-run the twelve-cohort block.** Corrected, its `corr(arrivals, cancels)` is
+**+0.069** against a +0.85 target. That is not a distance `haz0` can travel by shifting mean
+depth — it is an order of magnitude, and the block permits `haz0` to move only on depth.
+The one variant that did reach the depth band got there by lowering the hazard until 43% of
+departures were the residence cap rather than the mechanism, so the setting where the model
+looked closest is the setting where time-in-queue was doing least of the work. Re-running
+would spend a fresh pre-registration to confirm a failure that is already over-determined.
+
+**And the phenomenon it was proposed to explain now has an account that does not need it.**
+The co-movement shortfall was diagnosed quantitatively as a Poisson ceiling minus a
+saturation penalty, and the matched pair in `pkg/ceiling` showed the penalty tracks the
+driver's spread. `cfg/lob_counts.yaml` reaches all three pooled targets with no age
+structure whatsoever. An age mechanism is not required by the evidence.
+
+**What would reopen it.** Not a better `haz0` — a cancellation rule whose age weighting is
+not also a depth weighting. The identity result from `cfg/lob_churn_recycled.yaml` still
+stands: any rule keyed to recent arrivals inherits a positive depth coupling. Time-in-queue
+was the complement of that, and the complement did not escape it either, because the oldest
+cohort's contents are still a lagged function of arrivals. A rule that breaks the coupling
+would have to key on something that is not resting volume at all.
+
+A caveat worth leaving attached: **a pre-registration is now hard to write honestly here.**
+Fixing the damping bug required running the corrected model, so its behaviour at
+`haz0` = 0.016 has been seen. A fresh block would carry that contamination and must declare
+it, as AT–AW did.
