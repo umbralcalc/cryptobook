@@ -2162,3 +2162,102 @@ What is established: **age-structured cancellation does not break the depth coup
 the reason generalises beyond this mechanism. What is not: anything about a corrected
 cancellation definition, or about a scale-free precondition, both of which would need a
 fresh block.
+
+---
+
+## PROTOCOL CHANGE, 2026-08-03: the target is the pooled grand mean, not a single window
+
+Sanctioned by the maintainer. Every block up to now scored against a **single window's**
+five-symbol mean. Pooling seven recorded windows shows why that was wrong:
+`corr(depth, arrivals)` has a grand mean of **−0.1394** with a between-window SD of
+**0.0516**, and the Thursday window γ was calibrated to sits at −0.2129 — **1.4 SD into the
+tail**. Fitting to one draw of a quantity that wanders by 0.05, then testing on another,
+fails for reasons that have nothing to do with any mechanism.
+
+**From this block on, targets are the pooled grand mean and tolerances are multiples of the
+between-window SD.** Recorded as a change rather than applied silently, because it follows
+a run of failures against single-window targets and would otherwise look like moving the
+goalposts. The earlier blocks are not rescored; their bands stand as written.
+
+Reference values, seven windows × five symbols:
+
+| quantity | grand mean | between-window SD |
+|---|---|---|
+| `corr(depth, arrivals)` | −0.1394 | 0.0516 |
+| `corr(depth, cancels)` | −0.0577 | 0.0585 |
+| `corr(arrivals, cancels)` | **+0.9499** | **0.0243** |
+
+---
+
+## The co-movement gap — predictions fixed before `cfg/lob_var.yaml` exists
+
+**Fixed 2026-08-03, before the config is written.** The pooled measurement showed the model
+is within ordinary market variation on both depth correlations (1.1–1.6 SD) and **3.6 SD
+low on co-movement**, against the market's steadiest signature. So the co-movement is the
+target, not a cost check.
+
+### The gap has an arithmetic explanation, and it is not the mechanism
+
+With `arr ~ Poisson(λₐ·A)` and `can ~ Poisson(λ_c·A)` sharing driver `A`, independent
+Poisson noise caps the achievable correlation:
+
+	corr = λₐλ_c·Var(A) / (N + λₐλ_c·Var(A))
+
+At the shipped driver — mean 4, variance 8 — and ~26 counts/step, that ceiling is
+**0.9286**. The market sits at **0.9499, above the model's ceiling.** No amount of
+mechanism work reaches it while the driver's variance stays at 8: the model is not failing
+to couple the flows, it is failing to give them enough *shared* variation relative to their
+Poisson noise.
+
+Setting the ceiling equal to the market grand mean gives the variance required:
+
+	Var(A) = 0.9499·N / (λₐλ_c·(1 − 0.9499)) = **11.67**
+
+### The change: one number, computed in advance, not swept
+
+Driver variance **8 → 11.67**, mean held at 4. For the AR(1) at φ = 0.8 the stationary
+variance is `Var(innovation)/9`, so the innovation becomes `gamma(0.152367, 0.038092)` —
+mean 4.000, variance 105.01. Everything else is inherited from `cfg/lob_damping.yaml`
+unchanged, γ included.
+
+**This is a point prediction from theory, not a fit.** No sweep, no adjustable parameter,
+no depth re-set: the value comes out of the algebra above and is committed here before the
+config runs. If the arithmetic is right, BC lands without anyone aiming at it.
+
+### Predictions
+
+**BC — the arithmetic holds.** `corr(arrivals, cancels)` lands in **[0.930, 0.970]**, i.e.
+the market grand mean ±0.02.
+
+The direct test of the Poisson-ceiling account. It could fail two ways: short, if arrival
+saturation in activity still drags it below the ceiling (that saturation is what put the
+model at 0.863 rather than 0.929 today, and raising variance does not remove it); or long,
+if higher driver variance couples the flows more than the algebra allows.
+
+**BD — the held-out cancellation side survives.** `corr(depth, cancels)` within **1.5 SD**
+of the pooled grand mean: **[−0.146, +0.030]**.
+
+**BE — the held-out arrival side survives.** `corr(depth, arrivals)` within **1.5 SD** of
+the pooled grand mean: **[−0.217, −0.062]**.
+
+BE is a real constraint and the model **marginally fails it today** at −0.2244, seven
+thousandths outside. Raising driver variance will move it, and I do not know which way.
+
+**BF — the book survives.** Drift **< 1.3**, spread sd **> 0.1**.
+
+### What each outcome means
+
+| BC | BD/BE | reading |
+|---|---|---|
+| **pass** | **pass** | The co-movement gap was a *noise-ratio* problem, not a mechanism problem, and a number computed from theory closed it without touching the mechanism or being fitted to anything. That would be the first quantitative prediction this project has made and had land. |
+| **pass** | **fail** | Co-movement is reachable but costs the depth structure — the same trade in the opposite direction from every earlier block, and evidence the three signatures cannot be held at once in this vocabulary. |
+| **fail (short)** | — | Arrival saturation dominates the Poisson ceiling, so the binding constraint is the damping's activity dependence rather than the driver's variance. That points at γ, which is fitted, and would mean the co-movement and the depth fit are coupled through one parameter. |
+| **fail (long)** | — | The Poisson-ceiling algebra is wrong about this model, most likely because the flows share more than the driver. Worth knowing precisely because the algebra is what makes this a prediction rather than a sweep. |
+
+### What even a full pass would not establish
+
+Model-internal, 32-member ensemble means at 8000 steps, against a grand mean from **three
+distinct occasions** on one venue — the effective independent sample is nearer 3 than 7 and
+the SD is the defensible statistic, which is why tolerances are stated in SD. The standing
+inference confound is untouched. And nothing here is calibrated: the one number that moves
+was computed from the algebra above, not fitted.
