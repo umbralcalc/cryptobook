@@ -32,6 +32,7 @@ import (
 
 	"github.com/umbralcalc/cryptobook/pkg/arrivals"
 	"github.com/umbralcalc/cryptobook/pkg/baseline"
+	"github.com/umbralcalc/cryptobook/pkg/ceiling"
 	"github.com/umbralcalc/cryptobook/pkg/churn"
 	"github.com/umbralcalc/cryptobook/pkg/claims"
 	"github.com/umbralcalc/cryptobook/pkg/damping"
@@ -56,6 +57,7 @@ var providers = []func() []claims.Claim{
 	persistent.ObservedBehaviour, // Spike 2.2: a persistent driver — the closest miss so far
 	damping.ObservedBehaviour,    // Spike 2.2: the first calibration — one parameter fitted, two held out
 	split.ObservedBehaviour,      // Step 3: the partitioned model reproduces the monolith
+	ceiling.ObservedBehaviour,    // The co-movement ceiling account, and the matched pair that identified it
 	recovery.ObservedBehaviour,   // Spike 1.2: identification, ESS, recovery
 	windowing.ObservedBehaviour,  // Gate 3.4: how calibration degrades with window length
 	stability.ObservedBehaviour,  // Spike 4.2: the one output the minimal model supports

@@ -2381,3 +2381,51 @@ dataset and a collection loop*, not because a posterior is being stepped. The
 downstream-registered Go hook) is the worked precedent for how such a boundary gets
 drawn rather than deferred.
 
+
+## Six blocks of results existed with no test, and that was a lapse
+
+Between `cfg/lob_var.yaml` and `cfg/lob_counts.yaml` — blocks BC through BU, the whole
+stretch that diagnosed the co-movement shortfall and produced the best model this project
+has — **six configs were built and none had a scoring package.** CLAIMS.md sat at 48 for
+the entire stretch. Every number lived in this file and in PREREGISTRATION.md as prose.
+
+That suspends the repo's own standard, stated in `cmd/gen-claims` and in the memory note
+*claims are generated, not written*: a number without a test is not publishable. It is
+worth being precise about how it happened, because the mechanism was not laziness. Each
+block was pre-registered, run, and scored honestly against bounds fixed in advance — the
+discipline that matters most was never dropped. What was dropped was the *durability* of
+the result: a pre-registered verdict recorded only in prose is a claim about a config that
+nothing re-checks, so the config can drift out from under it silently and the prose will
+still read as true.
+
+`pkg/ceiling` now pins what can be pinned, and the boundary is the point:
+
+- **Model-internal findings become claims.** The matched pair — same Poisson ceiling
+  reached via driver variance and via counts, with the saturation penalty growing on one
+  route and not the other — needs no market data at all. It is three ensembles and some
+  algebra, so it is CI-checkable and it is now claimed.
+- **Market comparisons cannot and stay here.** They need recorded Binance segments, which
+  are not redistributable and are gitignored. `pkg/ceiling` states its three correlations
+  as values and points the reader at this file for whether they *match* anything.
+
+Two guards were added that are not claims but exist to make a future mistake loud rather
+than silent. `TestTheTwoRoutesReachAMatchedCeiling` fails if the two routes' ceilings drift
+apart, because the matched pair is only a comparison while they agree — without it the
+penalty difference could quietly become a ceiling difference. `TestTheCountsModelIsFrozen`
+pins the five shipped parameters of `cfg/lob_counts.yaml` and says, at the point of
+breakage, that changing them **voids the BS-BU out-of-sample result rather than inviting a
+re-score**. That distinction is the whole value of an out-of-sample test and it is exactly
+the kind of thing that gets forgotten between sessions.
+
+Three claims added, 48 to 51. Both new claims carry a `NOT PRE-REGISTERED` line in their
+limitations, because bounds set after seeing the measurement are a regression guard and
+should not be read with the weight of the pre-registered blocks. That admission is the
+reason the claims are worth having: they are honest about being retrospective.
+
+**Still unpaid.** `cfg/lob_ages*.yaml` — the three time-in-queue variants — have no scoring
+package and are not claimed. All three were inconclusive or failed, and one of them
+(AX-BB) failed on a precondition I designed badly rather than on the mechanism. A claim
+should exist for the *cancellation-definition defect* those models exposed: volume leaving
+by the age cap is not counted as a cancellation, so model and market series are not
+like-for-like for any age model. That is a real defect in the comparison, it is
+model-internal, and it is currently recorded nowhere that runs.
