@@ -2613,3 +2613,79 @@ exposes does. The counts `N` remain the untouched third input to the ceiling, an
 excluded here because raising them moves depth, which was the thing being held. Whether
 raising counts *and* re-setting depth reaches the target is a different block, and it would
 have to hold depth by a route other than the damping.
+
+---
+
+## Counts instead of variance — predictions fixed before `cfg/lob_counts.yaml` exists
+
+**Fixed 2026-08-03.** BK raised the driver's variance to lift the Poisson ceiling and the
+saturation ate 93% of the gain. This block reaches **the same ceiling by the other route**,
+which turns the pair into a controlled comparison rather than a second attempt.
+
+### The algebra that makes this a matched pair
+
+With `E[A] = 4`, the ceiling is
+
+	ceiling = N·Var(A) / (E[A]² + N·Var(A))
+
+so **N and Var(A) enter only through their product.** BK sat at N·V = 515 (N = 26,
+V = 19.82) with a ceiling of 0.9699. This block sits at N·V = 520 (N = 44, V = 11.81) with
+a ceiling of 0.9701. **The two are at the same ceiling by construction.**
+
+They differ in one thing only: raising Var(A) changes the driver's distribution and
+therefore how the damping denominator `1 + q·act^γ/s` behaves, while **raising counts at
+fixed variance does not touch `act` at all.** If the saturation is a property of the
+driver's spread, it should grow in BK and stay put here.
+
+That is the whole content of the block, and it is not something either arm could establish
+alone.
+
+### The change, and how depth is held
+
+`limit_rate` **2.0 → 3.381** and `churn_rate` **1.075 → 1.817**, the same factor 1.691, so
+their ratio — which sets the depth equilibrium — is unchanged. γ stays at 0.45 and Var(A)
+stays at 11.81, the value BC established and BK overshot.
+
+`churn_rate` may be re-set **once** on mean depth alone if the ratio does not hold depth in
+227.8–235.9, since the marketable term does not scale with the rates. That is the standing
+single adjustment and nothing else may move.
+
+### Predictions
+
+**BO — the saturation does not grow with counts.** The gap between the Poisson ceiling and
+the achieved co-movement lands in **[0.045, 0.070]**, i.e. near its 0.0567 value at
+N = 26 and **not** the 0.0748 that BK produced at the same ceiling.
+
+**This is the block.** It fails if the gap lands near BK's, which would mean the saturation
+tracks the product N·V rather than the driver's spread — and would make the ceiling account
+wrong about its own mechanism, not merely limited in range.
+
+**BP — the co-movement clears its floor.** `corr(arrivals, cancels)` in
+**[0.905, 0.925]**, the same band BK was scored on, straddling the 0.9134 floor.
+
+Follows from BO arithmetically, and is stated separately so the mechanism claim and the
+outcome can fail independently.
+
+**BQ — the depth correlations stay in band.** `corr(depth, arrivals)` in [−0.217, −0.062]
+AND `corr(depth, cancels)` in [−0.146, +0.030].
+
+BK failed this badly — both moved about +0.07 toward positive when the driver got burstier.
+Counts at fixed variance should not do that, since the driver is untouched, but the book is
+turning over 69% faster and that is not nothing.
+
+**BR — the book survives.** Drift **< 1.3**, spread sd **> 0.1**.
+
+### What each outcome means
+
+| BO | BP/BQ | reading |
+|---|---|---|
+| **pass** | **pass** | **All three pooled targets met at once**, and the saturation is identified as a property of the driver's spread rather than of the ceiling. BK's failure and this success at matched N·V would together be a clean mechanism result, not a lucky setting. The honest next step is a fresh recording. |
+| **pass** | **fail (BQ)** | The saturation account is right and the counts route still costs the depth correlations — through turnover rather than burstiness. A third distinct route to the same trade-off. |
+| **fail** | — | The saturation tracks N·V, not the driver's spread. The ceiling account would be wrong about *why*, which matters more than this block's outcome: BC, BG and BK all rest on that account, and their readings would need restating. |
+
+### What even a full pass would not establish
+
+That the model is right — only that it meets three pooled targets from three distinct
+occasions on one venue, at 1.5 SD tolerances on a spread estimated from those three. Nothing
+is fitted: both rates move by a factor computed from the algebra, and `churn_rate`'s
+permitted re-set is on depth alone.
