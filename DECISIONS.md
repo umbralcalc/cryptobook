@@ -1967,6 +1967,75 @@ What it surfaced instead were two errors of mine about the engine's capabilities
 the same direction — assuming a mechanism absent because I had not exercised it.
 
 
+## Pooling the windows inverts the diagnosis, and explains the calibration failure
+
+A **measurement, not a prediction test**, and recorded as one for a reason given below.
+Seven recorded windows, five symbols each, pooled:
+
+| window | `corr(d,arr)` | `corr(d,can)` | `corr(arr,can)` |
+|---|---|---|---|
+| Thu 07-30 | −0.2129 | −0.1267 | +0.9529 |
+| Sat 08-01 | −0.0675 | +0.0349 | +0.9035 |
+| Sun w1–w5 | −0.1174 … −0.1786 | −0.0079 … −0.1196 | +0.9459 … +0.9775 |
+
+| quantity | grand mean | between-window SD | frozen model | gap |
+|---|---|---|---|---|
+| `corr(depth, arrivals)` | −0.1394 | 0.0516 | −0.2244 | **1.6 SD** |
+| `corr(depth, cancels)` | −0.0577 | 0.0585 | −0.1200 | **1.1 SD** |
+| `corr(arrivals, cancels)` | **+0.9499** | **0.0243** | +0.8629 | **3.6 SD** |
+
+### Why this was NOT pre-registered, and must not be read as a test
+
+Every per-window mean was already recorded in this document before the pooling was done, so
+the grand mean and its spread were **computable in advance** — I estimated them to two
+decimal places by hand before running anything. A pre-registration whose result the author
+can calculate is theatre, so this is filed as a measurement alongside the throughput and
+noise-floor numbers, and it carries no pass/fail.
+
+### The diagnosis inverts
+
+The single-window out-of-sample test said the **depth correlations** failed and the
+co-movement bound held. Pooled, it is the other way round:
+
+- On the depth correlations the model sits **1.1–1.6 SD** from the grand mean — inside the
+  range the market actually visits, and unremarkable against window-to-window variation.
+- On **co-movement** it sits **3.6 SD** low, against the market's *most stable* quantity —
+  between-window SD 0.0243, less than half the depth correlations'.
+
+**The robust discrepancy is the co-movement, and it always was.** It is the one signature
+the model has consistently missed (persistent driver +0.816, damping +0.863, recycled
++0.418, twelve cohorts +0.180) and the one the market holds most tightly. Every mechanism
+block treated it as the cost check; it should have been the target.
+
+### It also explains the out-of-sample failure directly
+
+γ was fitted to `corr(depth, arrivals)` = **−0.2128**, the Thursday five-symbol mean. The
+grand mean is **−0.1394** with a between-window SD of 0.0516, so **Thursday is a 1.4 SD
+outlier** and the calibration was fitted to an unusual window. Fitting to one draw of a
+quantity that wanders by 0.05 between windows, then testing on another draw, fails for
+reasons that have nothing to do with the mechanism.
+
+That is a cleaner account of `pkg/oos`'s result than "the market moved": the market moved
+*and* the fit target was drawn from the tail.
+
+### What this does not establish
+
+Seven windows but only **three distinct occasions** — one Thursday, one Saturday, one
+Sunday morning holding five of them minutes apart. The effective independent sample is
+nearer 3 than 7, so the quoted standard errors are optimistic and the SD multiples are the
+defensible figures; that is why gaps are given in SD above and SE is relegated.
+
+It says nothing about whether the grand mean is stable over weeks, across venues, or
+outside crypto spot. And the standing inference confound is untouched: both flows are still
+inferred from net depth changes.
+
+### What it changes about what to do next
+
+Not a sixth mechanism for the depth coupling — the model is already within ordinary market
+variation on both depth correlations. **The open problem is the co-movement gap**, which is
+large, robust, and against the market's steadiest signature.
+
+
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
 **Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
