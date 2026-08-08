@@ -2261,3 +2261,70 @@ distinct occasions** on one venue — the effective independent sample is nearer
 the SD is the defensible statistic, which is why tolerances are stated in SD. The standing
 inference confound is untouched. And nothing here is calibrated: the one number that moves
 was computed from the algebra above, not fitted.
+
+### Scored, 2026-08-03 — BC fails SHORT, and the failure closes the direction with arithmetic
+
+| | measured | wanted | |
+|---|---|---|---|
+| driver variance realised | 11.81 | 11.67 | construction correct |
+| **BC** `corr(arrivals, cancels)` | **+0.8869** (SE 0.0008) | [0.930, 0.970] | **FAIL, short** |
+| **BD** `corr(depth, cancels)` | −0.1227 (SE 0.0049) | [−0.146, +0.030] | pass |
+| **BE** `corr(depth, arrivals)` | −0.2157 (SE 0.0049) | [−0.217, −0.062] | pass by **0.0013** |
+| **BF** | drift 1.0009, spread sd 0.6388 | < 1.3, > 0.1 | pass |
+
+#### The algebra predicts the DERIVATIVE and misses the LEVEL, by a constant
+
+| Var(A) | Poisson ceiling | achieved | gap |
+|---|---|---|---|
+| 8.00 | 0.9286 | 0.8629 | **0.0657** |
+| 11.81 | 0.9505 | 0.8869 | **0.0636** |
+
+The ceiling moved **+0.0219** and the model moved **+0.0240** — the response tracks the
+prediction almost exactly. But both sit about **0.065 below** their ceiling, and that offset
+is **invariant to the driver's variance**.
+
+That offset is the arrival saturation identified in the persistent block: arrivals are
+proportional to `act/(1 + q·act^γ/s)`, which saturates in activity, while cancellation stays
+proportional to it. Raising the shared variance lifts both flows' ceiling and does nothing
+to the saturation.
+
+#### Which closes the direction, not just this attempt
+
+If the penalty is a constant ≈0.065 and the Poisson ceiling cannot exceed 1, then reaching
+the market's **+0.9499** would need a ceiling of **1.015**. **No driver variance reaches the
+market's co-movement while the arrival saturation is present.** The direction is exhausted
+by arithmetic rather than by trying values.
+
+This is the pre-registered "fail short" reading, and it lands where that row said it would:
+*the binding constraint is the damping's activity dependence rather than the driver's
+variance. That points at γ, which is fitted.* The co-movement and the depth fit **are
+coupled through one parameter** — γ sets both how well the depth correlation matches and how
+much co-movement the saturation costs.
+
+#### BE passed and should not be read as a result
+
+−0.2157 against a floor of −0.217 is inside by **0.0013**, about a quarter of one standard
+error and far below the 0.05 between-window SD the tolerance was built from. It is a pass on
+the rule as written and nothing more; a different seed block could put it either side.
+
+#### What this establishes
+
+**The co-movement gap is not a mechanism problem and not a noise-ratio problem.** It is the
+arrival damping's saturation, and it is quantitatively pinned: 0.065 of correlation, stable
+across a 48% change in driver variance.
+
+That is the first quantitative account this project has of *why* a signature is missed,
+rather than a measurement that it is. Five mechanism blocks treated the co-movement as a
+cost to be paid; it turns out to be a fixed levy charged by the arrival side, which none of
+them touched.
+
+#### What it does not establish
+
+That reducing γ would close the gap without breaking the depth fit — γ was fitted to the
+depth correlation and moving it changes both, which is exactly the coupling this result
+identifies. Testing that trade-off is a fresh block, and it is a two-target problem rather
+than the one-target problems every block so far has been.
+
+Nothing here is fitted: the one number that moved was computed from algebra before the
+config ran, and it produced the predicted *change* while revealing a constant the algebra
+did not contain.
