@@ -510,6 +510,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 
 ## Phase 3 — Offline calibration
 
+### `persistence_biases_the_recovered_dispersion_downward_on_finite_windows`
+
+> The offline calibration is NOT blind to persistence, contradicting what CH-2 pre-registered. Two generators matched to the SAME marginal dispersion (0.7292) — one AR(1) persistent, one IID — recover DIFFERENT phi: the persistent one lands systematically below the IID one. A persistent driver under-explores its own dispersion within a finite window (its heavy-tail excursions are clustered and rare), so the empirical dispersion the likelihood sees is smaller than the population marginal, and phi is biased down. The per-step likelihood is blind to persistence in POPULATION but not in a finite SAMPLE — which is the distinction CH-2's prediction missed.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineCalibration/persistence_biases_the_recovered_dispersion_downward_on_finite_windows`](pkg/offline/behaviour_test.go)
+- **Observed:** IID-matched minus persistent recovered phi (the bias); and each generator's relative error, over 6 segments — persistence bias (IID - persistent) 0.11 · persistent relErr 0.23 · IID-matched relErr 0.07 (asserts persistence bias (IID - persistent) > 0.05 (persistent recovers systematically lower), persistent relErr > 0.15 (persistent recovers poorly), IID-matched relErr < 0.15 (IID-matched recovers well))
+- **Does not support:** CONTRADICTS the pre-registered CH-2, which predicted the two would recover the same phi within noise because they share a per-step likelihood. That reasoning conflated the population marginal (genuinely identical) with the finite-window empirical dispersion (different under autocorrelation); the claim pinned here is the corrected finding, and it is a regression guard on an already-seen result, not a prediction. The magnitude of the bias is specific to 400-step windows and persistence 0.8; a longer window would shrink it as the driver explores its tail. Synthetic identifiability only.
+
 ### `the_activity_scaled_rates_recover_offline_under_both_likelihoods`
 
 > Read back through the json_log source that Gate 3.4 selected as the offline architecture, an SMC recovers both activity-scaled rates — the arrival rate and the churn (cancellation) rate — to within 25% of truth, whether the likelihood is Poisson or negative binomial. Both read the mean and the rates set the mean, so the recorded-segment round trip costs the rate estimates nothing. This is the control the dispersion result rests on: the plumbing recovers what it should.
@@ -529,6 +539,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Enforced by:** [`TestOfflineCalibration/the_driver_dispersion_is_recovered_offline_only_by_the_dispersion_aware_likelihood`](pkg/offline/behaviour_test.go)
 - **Observed:** relative error of the posterior-mean dispersion phi, averaged over 6 segments, under each likelihood — neg-binom phi 0.29 · poisson phi 1.20 (asserts neg-binom phi < 40% (negative binomial recovers it), poisson phi > 100% (poisson cannot — near the prior mean))
 - **Does not support:** The PRE-REGISTERED test of Poisson non-identification FAILED as literally stated and is reported not rewidened: PREREGISTRATION.md CB predicted Poisson's phi posterior SD would stay within 10% of the prior's, and it contracted to 17%. The adaptive proposal narrows an unidentified coordinate's proposal even with no likelihood signal, so posterior SD is the WRONG discriminator; the point estimate landing near the prior mean (120% off) is the right one, and it is what is pinned here. Two further honest limits: even negative binomial recovers phi biased ~30% LOW, because a 400-step window under-samples the heavy gamma tail (shape 0.15) that carries the dispersion — so this shows phi is identifiable, not that it is unbiased on short segments. And it is a designed synthetic recovery: it says nothing about whether real cancellations carry this driver, only that if they did, the offline path could find it.
+
+### `the_marginal_dispersion_recovers_offline_even_with_a_persistent_driver`
+
+> CA-CC recovered a shared driver's dispersion when the driver was IID gamma per step. Making the driver AR(1) persistent — as the full cfg/lob_counts.yaml does — leaves the marginal count law gamma-Poisson (Var(n) = E(n) + phi*E(n)^2 still holds, with a smaller phi because persistence smooths the driver), and a negative-binomial SMC still recovers that marginal dispersion within 40% of truth. So temporal structure in the driver does not, by itself, break offline dispersion recovery.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineCalibration/the_marginal_dispersion_recovers_offline_even_with_a_persistent_driver`](pkg/offline/behaviour_test.go)
+- **Observed:** relative error of the posterior-mean phi against the persistent driver's marginal truth 0.7292, averaged over 6 segments — persistent phi relErr 0.23 (asserts persistent phi relErr < 40% (still recovers))
+- **Does not support:** NOT PRE-REGISTERED as a package; CH-1 was fixed in PREREGISTRATION.md and the 40% bar mirrors CB. Synthetic identifiability only. And 40% is a loose bar the persistent estimate needs — see the companion claim: it recovers biased low, so 'within 40%' is passed by a biased estimator, not a clean one.
 
 ### `the_offline_path_mixes_as_well_as_the_in_memory_smc`
 

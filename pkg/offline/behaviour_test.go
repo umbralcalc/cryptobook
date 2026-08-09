@@ -12,6 +12,7 @@ import (
 // TestOfflineCalibration is the binding test named by every claim in behaviour.go.
 func TestOfflineCalibration(t *testing.T) {
 	measureDir = t.TempDir()
+	persistDir = t.TempDir()
 	for _, claim := range ObservedBehaviour() {
 		t.Run(claim.ID, func(t *testing.T) {
 			if err := claims.Verify(claim); err != nil {
@@ -43,5 +44,25 @@ func TestTheGeneratorTruthIsWhatTheClaimsAssume(t *testing.T) {
 	if !strings.Contains(src, "shared(gamma(activity_shape, activity_rate))") {
 		t.Errorf("%s no longer draws one shared driver; without it arrivals and cancels do "+
 			"not co-move and the model is not a churn model", generator)
+	}
+}
+
+// TestThePersistentGeneratorIsWhatCHAssumes pins the AR(1) driver CH rests on: its params,
+// the recursion on the bare `driver` field (row 0 = previous step), and the shared coupling.
+func TestThePersistentGeneratorIsWhatCHAssumes(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join(cfgrun.ConfigDir(), "lob_churn_persist.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(source)
+	for _, want := range []string{
+		"persistence: [0.8]", "activity_shape: [0.152367]", "activity_rate: [0.038092]",
+		"limit_rate: [3.381]", "churn_rate: [1.900]",
+		"persistence * driver + (1 - persistence) * gamma(activity_shape, activity_rate)",
+	} {
+		if !strings.Contains(src, want) {
+			t.Errorf("lob_churn_persist.yaml no longer contains %q; CH's truth phi_marginal "+
+				"0.7292 and its AR(1) structure assume it", want)
+		}
 	}
 }

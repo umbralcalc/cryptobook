@@ -3369,3 +3369,38 @@ The obvious next question — is the arrival-side instability a property of the 
 coupling genuinely varies occasion to occasion) or of the 8-minute window (too short to
 estimate a weak correlation stably) — needs a third occasion or longer windows to separate, and
 is left open rather than guessed.
+
+### Scored, 2026-08-09 — CH-1 holds; CH-2's prediction is CONTRADICTED, instructively
+Six segments each from two generators matched to the same marginal dispersion 0.7292 — one
+AR(1) persistent (ρ=0.8), one IID gamma — calibrated under negative binomial with a phi prior
+widened to bracket the smaller truth. pkg/offline pins it.
+
+| generator | mean recovered phi | relErr |
+|---|---|---|
+| persistent (AR(1), ρ=0.8) | 0.5644 | **22.6%** |
+| IID, matched marginal | 0.6772 | 7.1% |
+
+- **CH-1 — HOLDS.** The persistent driver's marginal dispersion recovers within 40% (22.6%).
+  Temporal structure does not, by itself, break offline dispersion recovery — the marginal
+  count law stays gamma-Poisson and the negative-binomial likelihood fits it.
+- **CH-2 — CONTRADICTED, and the contradiction is the finding.** I predicted the persistent and
+  IID generators, sharing the same marginal phi and the same per-step likelihood, would recover
+  the SAME phi within noise — "blind to persistence." They do not: the persistent one recovers
+  **0.113 lower** (22.6% vs 7.1% error), consistently across all six seeds. My reasoning
+  conflated the population marginal (genuinely identical) with the finite-window empirical
+  dispersion (different). A persistent driver's heavy-tail excursions are clustered and rare, so
+  in a 400-step window it under-explores its own dispersion, the empirical variance the
+  likelihood sees is smaller than the population marginal, and phi is biased down. The per-step
+  likelihood is blind to persistence in POPULATION but not in a finite SAMPLE.
+
+This is why CH-1's 40% bar is passed by a biased estimator, not a clean one, and pkg/offline
+says so. The corrected finding — persistence biases the recovered dispersion downward on finite
+windows — is pinned as a claim in its own right.
+
+### What it means for the full-model calibration
+The persistence confound is not benign after all: it does not break recovery (CH-1) but it
+biases it (CH-2), by an amount that shrinks with window length. So an offline calibration of the
+full cfg/lob_counts.yaml, whose driver is exactly this persistent process, would recover a
+dispersion biased low unless the window is long — which stacks with the damping confound (the
+next block, unbuilt) rather than replacing it. The honest sequence stands: persistence is
+measured, the damping is next, and only then the full model.

@@ -59,6 +59,10 @@ func ObservedBehaviour() []claims.Claim {
 	if err != nil {
 		panic("offline: measuring observed behaviour: " + err.Error())
 	}
+	persistent, matched, err := measurePersist()
+	if err != nil {
+		panic("offline: measuring the persistence experiment: " + err.Error())
+	}
 	binding := claims.Binding{
 		TestName: "TestOfflineCalibration",
 		TestFile: "pkg/offline/behaviour_test.go",
@@ -166,6 +170,71 @@ func ObservedBehaviour() []claims.Claim {
 			Observations: []claims.Observation{
 				{Label: "poisson peak ESS", Value: m.poisson.peakESS},
 				{Label: "neg-binom peak ESS", Value: m.negbin.peakESS},
+			},
+			Binding: binding,
+		},
+		{
+			ID: "the_marginal_dispersion_recovers_offline_even_with_a_persistent_driver",
+			Statement: "CA-CC recovered a shared driver's dispersion when the driver was IID " +
+				"gamma per step. Making the driver AR(1) persistent — as the full " +
+				"cfg/lob_counts.yaml does — leaves the marginal count law gamma-Poisson " +
+				"(Var(n) = E(n) + phi*E(n)^2 still holds, with a smaller phi because " +
+				"persistence smooths the driver), and a negative-binomial SMC still recovers " +
+				"that marginal dispersion within 40% of truth. So temporal structure in the " +
+				"driver does not, by itself, break offline dispersion recovery.",
+			Gate:  "3.4",
+			Phase: phase,
+			Data:  dataset,
+			Unit: "relative error of the posterior-mean phi against the persistent driver's " +
+				"marginal truth 0.7292, averaged over 6 segments",
+			Limitations: "NOT PRE-REGISTERED as a package; CH-1 was fixed in PREREGISTRATION.md " +
+				"and the 40% bar mirrors CB. Synthetic identifiability only. And 40% is a loose " +
+				"bar the persistent estimate needs — see the companion claim: it recovers " +
+				"biased low, so 'within 40%' is passed by a biased estimator, not a clean one.",
+			Thresholds: []claims.Threshold{
+				{ObsIndex: 0, GreaterThan: false, Ref: 0.40, RefLabel: "40% (still recovers)"},
+			},
+			Observations: []claims.Observation{
+				{Label: "persistent phi relErr", Value: persistent.relErr},
+			},
+			Binding: binding,
+		},
+		{
+			ID: "persistence_biases_the_recovered_dispersion_downward_on_finite_windows",
+			Statement: "The offline calibration is NOT blind to persistence, contradicting what " +
+				"CH-2 pre-registered. Two generators matched to the SAME marginal dispersion " +
+				"(0.7292) — one AR(1) persistent, one IID — recover DIFFERENT phi: the " +
+				"persistent one lands systematically below the IID one. A persistent driver " +
+				"under-explores its own dispersion within a finite window (its heavy-tail " +
+				"excursions are clustered and rare), so the empirical dispersion the likelihood " +
+				"sees is smaller than the population marginal, and phi is biased down. The " +
+				"per-step likelihood is blind to persistence in POPULATION but not in a finite " +
+				"SAMPLE — which is the distinction CH-2's prediction missed.",
+			Gate:  "3.4",
+			Phase: phase,
+			Data:  dataset,
+			Unit: "IID-matched minus persistent recovered phi (the bias); and each generator's " +
+				"relative error, over 6 segments",
+			Limitations: "CONTRADICTS the pre-registered CH-2, which predicted the two would " +
+				"recover the same phi within noise because they share a per-step likelihood. " +
+				"That reasoning conflated the population marginal (genuinely identical) with the " +
+				"finite-window empirical dispersion (different under autocorrelation); the claim " +
+				"pinned here is the corrected finding, and it is a regression guard on an " +
+				"already-seen result, not a prediction. The magnitude of the bias is specific to " +
+				"400-step windows and persistence 0.8; a longer window would shrink it as the " +
+				"driver explores its tail. Synthetic identifiability only.",
+			Thresholds: []claims.Threshold{
+				{ObsIndex: 0, GreaterThan: true, Ref: 0.05,
+					RefLabel: "0.05 (persistent recovers systematically lower)"},
+				{ObsIndex: 1, GreaterThan: true, Ref: 0.15,
+					RefLabel: "0.15 (persistent recovers poorly)"},
+				{ObsIndex: 2, GreaterThan: false, Ref: 0.15,
+					RefLabel: "0.15 (IID-matched recovers well)"},
+			},
+			Observations: []claims.Observation{
+				{Label: "persistence bias (IID - persistent)", Value: matched.meanPhi - persistent.meanPhi},
+				{Label: "persistent relErr", Value: persistent.relErr},
+				{Label: "IID-matched relErr", Value: matched.relErr},
 			},
 			Binding: binding,
 		},
