@@ -2615,3 +2615,44 @@ scored reference (pkg/ceiling); the decomposition is added alongside, never edit
 62 claims to 63. What this does NOT do: it adds no market agreement (that is pkg/ceiling and
 this file), and it does not make the full damped model calibratable offline — it makes it
 LEGIBLE, which is the prerequisite for that eventual work, not the work itself.
+## Spike 4.1 (Arrow egress) is resolved upstream — and I got it wrong first
+Picking up the Arrow thread, I claimed "the engine has no ArrowStateTimeStorage" after
+grepping the core module and finding nothing. That was wrong, and the maintainer corrected it:
+Arrow egress lives in **`github.com/umbralcalc/stochadex/pkg/arrowstore`, a SEPARATE opt-in
+module** — deliberately kept out of the core engine's go.mod so Arrow's dependency tree
+(including gonum v0.17) does not burden the core or break WebAssembly builds. My grep of the
+core `pkg/` could not have found it. The lesson is the one the stale project-state memory
+already recorded ("mostly resolved upstream in pkg/arrowstore") and I should have trusted:
+check the nested modules before declaring a capability absent.
+
+**What exists.** `arrowstore.ArrowStateTimeStorage` (FixedSizeList arrays, one lock-free
+builder per partition) and `arrowstore.ArrowStateTimeStorageOutputFunction`, the Arrow-native
+counterparts to the core `StateTimeStorage` / `StateTimeStorageOutputFunction`, wired as
+`output_function: {type: arrow, path: run.arrow}` and readable straight back as a `data:`
+source. So Spike 4.1's deliverable — "Arrow IPC output consumable by DuckDB/Polars/pandas" —
+is done.
+
+**The Invariant B gate is answered, and by the module's own structure.** The gate asked
+whether the Arrow path is performance-neutral-or-better on the hot loop. arrowstore's own
+figures: the per-step *append* is slightly slower than the pure-Go slice at mid widths, but
+producing Arrow overall is ~2.2–2.7× faster with far fewer allocations and roughly half the
+memory versus appending to StateTimeStorage and converting afterward. The resolution of the
+"append is slightly slower" tension is precisely that Arrow is a **separate opt-in module at
+the egress boundary**, not a change to the core hot loop — which is the "Arrow moves strictly
+to the egress boundary; the state spine stays dense row-oriented" branch PLAN.md named. The
+core's default path is unchanged, so nothing this project runs regresses.
+
+**For context, the cost Arrow would remove.** The default `StateTimeStorage.AppendByIndex`
+(storage.go) does `append(row, append([]float64(nil), values...))` — one heap allocation and
+copy of the whole state row per partition per step. Benchmarked at this project's state width
+(lob_counts, 23 wide): **1 alloc/op, 389 B/op**. That is the per-row egress allocation Arrow's
+columnar builders amortise away.
+
+**Decision for cryptobook: do not adopt it, and record why.** This project's workflow is
+in-process — cfgrun captures a run into StateTimeStorage and the claim packages analyse it in
+Go. Nothing here exports to Polars/pandas/DuckDB, so the columnar interchange arrowstore exists
+for buys this project nothing, while adopting it would pull Arrow's dependency tree into a repo
+whose whole discipline is staying lean and pure-config. If a future need to hand a run to an
+external columnar tool appears, `{type: arrow}` is a one-line output change away. Spike 4.1 is
+therefore CLOSED: implemented upstream, Invariant B satisfied by the opt-in-module design,
+adoption declined for this project with the door left open.
