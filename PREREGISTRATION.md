@@ -3078,3 +3078,60 @@ v0.14.0**, and `pkg/priced`'s claim that it was blocked by a capability gap was 
 was blocked by the formulation I reached for. The upstream `scan` work stands on its own
 merits (it is O(n) where this is O(n²), which matters at 128+ slots) but it cannot be
 justified by this output, and STOCHADEX_GAPS.md has been corrected to say so.
+## Offline recovery of the churn model — is the driver variance identifiable? CA–CC
+**Fixed 2026-08-09, before the inference config exists.** The user selected Phase 3 (offline
+calibration) as the next step. Reading the ground first turned up a fork inside it that this
+block resolves before any real-data calibration is attempted.
+
+### The fork
+`cfg/lob_calibrate_from_log.yaml` already runs SMC offline through the `json_log` source —
+but over the OLD independent-Poisson model (`limit_rate`/`cancel_rate`/`market_rate`) with a
+**Poisson likelihood**, which is the family Spike 2.2 measured as wrong by three orders of
+magnitude (Var/Mean ≈ 3785 against the required 1). Calibrating `cfg/lob_counts.yaml` — the
+churn model that fixed 2.2 — is not a matter of pointing that config at a different file,
+because **lob_counts is identified by its driver variance**, and a Poisson likelihood has
+mean = variance by construction. Whether a per-step Poisson likelihood can even SEE a latent
+driver's marginal variance is unknown, and it is the question that decides whether Phase 3
+offline calibration of the real model is possible with the inference tier as it ships.
+
+So this block asks the identifiability question on SYNTHETIC flow, where the truth is known
+and no market data is needed, before spending a calendar-gated real segment on a calibration
+that may be structurally blind to the parameter that matters.
+
+### The experiment
+Generate a stream from a churn generator (lob_counts's driver + damped arrivals + churn
+cancellations), record it to disk, read it back through `json_log`, and run SMC offline
+against an inference model that includes the latent gamma driver and carries THREE free
+parameters: `limit_rate` (truth 3.381), `churn_rate` (truth 1.900), and the driver variance
+(truth set by `gamma(0.152367, 0.038092)`). Same SMC settings as cfg/lob_recovery_smc.yaml
+so the ESS behaviour is comparable. Priors wide and not centred on the truth.
+
+### Predictions
+> **CA — the two rates recover.** `limit_rate` and `churn_rate` posterior means land within
+> **25% relative** of truth — the same tolerance Phase 1's SMC was held to — because they
+> set mean intensities and a Poisson likelihood is sharply sensitive to means.
+>
+> **CB — the driver variance recovers far worse, and the gap is the finding.** Its relative
+> error is at least **3x** the worse of the two rates', OR its posterior standard deviation
+> is at least **half** the prior's (i.e. the data barely moved it). Directional prior: a
+> per-step Poisson likelihood conditioned on the intensity is weakly sensitive to the latent
+> driver's marginal variance, so the parameter that makes lob_counts a churn model is the
+> one the offline path cannot pin down.
+>
+> **CC — the plumbing is not the cause.** Per-round ESS recovers across rounds just as
+> cfg/lob_recovery_smc.yaml's does — the `json_log` source changes only WHERE the data comes
+> from, not the inference — so whatever CB shows is a property of the likelihood, not of the
+> offline path. If ESS collapses differently here, CB is confounded and not to be reported.
+
+CA and CC are the controls; **CB is the result.** If CB holds, the honest Phase 3 conclusion
+is that offline calibration of the churn model needs a likelihood the inference tier does not
+have (a dispersion-aware or driver-marginalising family), and that becomes the next modelling
+question — the same shape of finding as Spike 2.2, reached by construction rather than against
+a spent real segment. If CB FAILS — the driver variance recovers well — then real-data offline
+calibration is unblocked and the next step is a held-out recorded segment, which is calendar-gated.
+
+### What this is not
+Synthetic throughout: the truth is the generator's own parameters, so this tests IDENTIFIABILITY
+and the offline machinery, not agreement with any market. No limb touches recorded Binance data,
+and CB says nothing about whether real cancellations have this driver — only whether, IF they
+did, the offline path could recover it.
