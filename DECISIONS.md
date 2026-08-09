@@ -2689,3 +2689,30 @@ re-estimated to absorb occasion 3, the model stands exactly as shipped. A guard 
 honest one-line summary: lob_counts is not the first replicated generalisation this project
 hoped for, but its load-bearing signature held and only the weak arrival coupling failed,
 narrowly — so the model is dented, not broken, and the failure points somewhere specific.
+## Splitting -race off the merge gate
+CI reached ~19 minutes and the question was why. The breakdown, from a green run: the test
+step was 1164s, dominated by a single package — pkg/damping at 938s, because it re-measures a
+seven-point gamma sweep, each point a 32-seed 8000-step ensemble (224 full engine runs), under
+-race. On a two-core runner -race multiplies the suite ~5x, and `go test ./...` overlaps only
+~2 packages, so damping alone set the floor. The ensemble size is not padding: the 2026-08-02
+audit showed a single seed at 2000 steps carries an 0.053 SD, larger than the 0.021 distance
+the selection turns on, so the claims genuinely need 32x8000.
+
+So the time is real work, not waste, and the ensemble sizes cannot be cut without weakening
+published claims. The lever that costs nothing scientific is **-race itself**: it is
+re-validating the SAME pinned upstream engine concurrency on every push, and this repo adds no
+concurrency of its own — it calls the engine's ensembler and analyses the result in Go. The
+per-push race coverage was buying almost nothing.
+
+**Now:** the `test` job (build, vet, `go test` WITHOUT -race, CLAIMS.md staleness) is the
+merge gate on every push and PR; the `race` job (`go test -race`) runs nightly at 07:00 UTC and
+on manual dispatch. The gate still re-measures every claim twice (the binding tests, then
+gen-claims for the staleness check), so it is not fast in absolute terms — expect ~10-12 min,
+not the four I first guessed before remembering gen-claims re-measures — but it is off the ~5x
+-race multiplier, roughly halving it. Data races are caught within a day, and anyone touching
+concurrency can trigger the race job by hand rather than waiting for the nightly.
+
+The honest cost: a race introduced and merged during the day is not caught until night. That is
+acceptable here specifically because the only place a race could live — the engine's concurrent
+partition loop — is a pinned dependency this repo does not modify. If that ever changes (a
+downstream Go hook that runs concurrently, say), -race belongs back on the gate.

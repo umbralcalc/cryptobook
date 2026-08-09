@@ -3,13 +3,24 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    # Nightly, 07:00 UTC. The -race suite runs here, off the per-push path — see the `race`
+    # job and DECISIONS.md ("Splitting -race off the merge gate").
+    - cron: '0 7 * * *'
+  workflow_dispatch: # so the -race suite can be triggered by hand between nightlies
 
 concurrency: # cancel superseded runs to save iteration time
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
+  # The merge gate: everything except the race detector, on every push and PR. It re-measures
+  # every claim (the test suite's binding tests, then gen-claims for the staleness check), so
+  # it is not fast in absolute terms — but dropping -race takes it off the ~5x multiplier and
+  # roughly halves it versus the old single -race job that pkg/damping's 7x32x8000 sweep
+  # pinned at ~16 minutes on its own.
   test:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     # No Postgres service container, deliberately — see DECISIONS.md.
     #
@@ -32,30 +43,42 @@ jobs:
           cache: true
       - run: go build ./...
       - run: go vet ./...
-      # Phase 0 prerequisite (1). -race is not optional here: the engine runs a
-      # goroutine per partition, and Phase 3's streaming ingress adds a feed
-      # goroutine alongside them. -count=1 disables test caching so CI always
-      # re-runs the suite rather than reporting a cached pass.
+      # No -race here — that is the nightly `race` job. This still catches every logic and
+      # claim regression; only data races are deferred to nightly, and they can only live in
+      # the pinned upstream engine (this repo adds no concurrency of its own beyond calling
+      # the engine's ensembler), so per-push race coverage bought little.
       #
-      # -timeout is stated rather than left to Go's 10m default, which this suite
-      # outgrew: pkg/recovery panicked at that default having measured everything
-      # correctly, and pkg/windowing passed at 490s with under two minutes of room.
-      # Neither is a slow test to be fixed by waiting — these packages re-run the
-      # engine tens of times to re-measure every published claim from scratch, and a
-      # two-core runner under -race takes ~5x what a laptop does. 30m is a ceiling
-      # for a runaway, not a budget: if a package approaches it, the fix is to look
-      # at what it is re-measuring, not to raise this number.
-      - run: go test ./... -race -count=1 -timeout 30m
-      # Phase 0 prerequisite (3), and the SOLE enforcement of both halves that the
-      # binding tests do not cover. The binding tests catch a broken claim assertion;
-      # this step catches an invalid claim set (gen-claims runs claims.Check and exits
-      # non-zero) AND a recorded number that moved without CLAIMS.md being regenerated
-      # (the git diff). internal/claimset used to duplicate both as unit tests; they
-      # were removed because re-measuring every claim made that package the critical
-      # path of the -race suite at ~277s. See internal/claimset/claimset.go — if this
-      # step is ever weakened, that check has to come back somewhere.
+      # -count=1 disables test caching so CI always re-runs rather than reporting a cached
+      # pass. -timeout is a runaway ceiling, not a budget: these packages re-run the engine
+      # tens of times to re-measure every published claim, so they are minutes, not seconds.
+      # If a package approaches the ceiling, the fix is to look at what it re-measures.
+      - run: go test ./... -count=1 -timeout 20m
+      # The SOLE enforcement of both halves that the binding tests do not cover. The binding
+      # tests catch a broken claim assertion; this step catches an invalid claim set
+      # (gen-claims runs claims.Check and exits non-zero) AND a recorded number that moved
+      # without CLAIMS.md being regenerated (the git diff). internal/claimset used to
+      # duplicate both as unit tests; they were removed because re-measuring every claim made
+      # that package the critical path. See internal/claimset/claimset.go — if this step is
+      # ever weakened, that check has to come back somewhere.
       - name: CLAIMS.md is generated, not hand-written
         run: |
           go run ./cmd/gen-claims
           git diff --exit-code -- CLAIMS.md \
             || { echo "::error::CLAIMS.md is stale — run 'go run ./cmd/gen-claims' and commit"; exit 1; }
+
+  # The race detector, moved OFF the merge gate to nightly. -race is not optional for this
+  # engine — it runs a goroutine per partition, and the ensembler runs members concurrently —
+  # but on a two-core runner it multiplies the suite ~5x, and it re-validates the SAME pinned
+  # upstream concurrency on every push. Nightly catches a race within a day, which is the
+  # right trade for a repo whose own changes are pure config and in-process analysis. Trigger
+  # it by hand (workflow_dispatch) after any change that does touch concurrency.
+  race:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test ./... -race -count=1 -timeout 30m
