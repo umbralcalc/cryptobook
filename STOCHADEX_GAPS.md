@@ -119,6 +119,62 @@ and it is unvalidated beyond index bounds.
 
 ---
 
+## 5. The config's `run:` ensemble block is unreachable from Go without printing
+
+**Severity: low — it decides which layer owns the seeds, and forces the wrong one.**
+
+The config schema declares ensemble parameterisation as data. `RunModeConfig`
+(`pkg/api/program.go`) is a `run:` block carrying `mode: ensemble`, `seeds:` and
+`concurrency:`, and the CLI honours it: `api.Run` switches on `config.Run.Mode` and, for
+ensemble mode, runs one member per configured seed. So *in principle* an ensemble's seeds
+and size live in YAML, next to the model they parameterise.
+
+But `api.Run(config, socket)` returns nothing — it **prints** every member to stdout via
+`printEnsemble` and exits. The function that does the work and returns the storages,
+`ensembleRuns(config, resolvedSim) ([]simulator.EnsembleRun, error)`, is explicitly the
+"testable core ... performs no output" — and it is **unexported**, and it additionally
+reads `config.sourcePath`, an unexported `yaml:"-"` field. So a downstream Go harness that
+wants a config's declared ensemble AND the resulting storages (to compute a statistic
+rather than print rows) has no exported path to it.
+
+**What it blocks, concretely.** This project scores every claim on an ensemble, so
+`pkg/cfgrun.RunEnsemble` calls the one exported ensembler, `simulator.RunSeededEnsemble`,
+with a hand-built `build` closure and **seeds passed as a Go argument** (`DefaultSeeds`).
+That works — it is not a blocker — but it means the ensemble parameterisation lives in Go,
+not in the config. The `run:` block that the schema provides for exactly this is dead
+weight from a programmatic caller: none of this repo's configs carry one, because nothing
+here could consume it. For a project whose standing principle is that the model is pure
+config, having the *seeds and member count* forced into Go is the gap — small, but real,
+and squarely on the layer boundary this file is meant to police.
+
+**The fix is narrow.** Export a storage-returning ensemble entry point — essentially
+`ensembleRuns` under a public name, e.g. `api.RunEnsembleToStorage(config *ApiRunConfig)
+([]simulator.EnsembleRun, error)`, honouring the YAML `run:` block — or have `api.Run`
+optionally accept a sink instead of always printing. Either collapses
+`cfgrun.RunEnsemble` to a thin call with `seeds:`/`concurrency:` living in the config. The
+existing constraints on `ensembleRuns` would carry over and should be documented on the
+exported version: it requires a file-loaded config (members are rebuilt by re-loading the
+path), rejects embedded runs, and requires data-only partitions.
+
+**The honest counter-case, recorded so the maintainer can dismiss this fairly.** Seeds and
+member count are arguably a property of the *scoring harness*, not of the model — this
+project sizes `DefaultSeeds` from a measured standard-error target, which is a decision
+about how precisely to measure a claim, not about the dynamics. On that reading, seeds
+belong in Go and this is a preference, not a gap. The reason it is filed anyway is that the
+engine's *own schema* already took the other position by putting `seeds:` in the config;
+the gap is the asymmetry between a schema that says "ensemble parameters are data" and a
+programmatic surface that can only act on them by printing. If the answer upstream is "the
+`run:` block is for the CLI only, embedders should pass seeds in Go", that is a legitimate
+resolution — and it should be *stated*, because right now nothing says it and the dead
+`run:` block invites a downstream author to expect a path that is not there.
+
+**Not verified by a failing example, because there is nothing to fail** — the workaround is
+clean and in use. Verified by reading the exported surface: across `pkg/`, the only exported
+symbol returning ensemble storages is `simulator.RunSeededEnsemble` (seeds-as-argument), and
+no exported function consumes an `ApiRunConfig.Run` block and returns storages.
+
+---
+
 ## Resolved
 
 ### The expressions DSL had no scan across `each` lanes — entry 1

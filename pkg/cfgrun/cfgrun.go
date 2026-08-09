@@ -257,6 +257,16 @@ func (e EnsembleStat) StdError(members int) float64 {
 //
 // Concurrency is left at the engine's default (GOMAXPROCS). Members are independent, so
 // this is the one place in this repo where parallelism is free of ordering concerns.
+//
+// # Why seeds are a Go argument and not config
+//
+// They should be config: the schema has a `run:` block carrying seeds and concurrency, and
+// api.Run honours it. But api.Run PRINTS the members and returns nothing, and the
+// storage-returning core (api.ensembleRuns) is unexported, so there is no exported path
+// from a config's `run:` block to the member storages a claim statistic needs. Seeds
+// therefore live here (DefaultSeeds) rather than in YAML. See STOCHADEX_GAPS.md entry 5; if
+// that entry is closed upstream, this function collapses to a thin call and seeds move into
+// the config.
 func RunEnsemble(
 	name string,
 	subs Subs,
