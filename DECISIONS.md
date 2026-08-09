@@ -2656,3 +2656,36 @@ whose whole discipline is staying lean and pure-config. If a future need to hand
 external columnar tool appears, `{type: arrow}` is a one-line output change away. Spike 4.1 is
 therefore CLOSED: implemented upstream, Invariant B satisfied by the opt-in-module design,
 adoption declined for this project with the door left open.
+## Occasion 3: lob_counts does not cleanly replicate — the arrival side fails, the co-movement holds
+The out-of-sample linchpin was one occasion deep (BS-BU, 2026-08-08). I recorded a second
+occasion — Sunday 2026-08-09, 09:27–09:59 UTC, the same three-window five-symbol protocol —
+after pre-registering (CD-CG) that it re-uses the BS-BV bounds verbatim, nothing re-estimated.
+pkg/oospool scores it; it reproduces the BS-BU numbers exactly on occasion 2 first, so the
+pooling is verified before occasion 3 is trusted. The segments are not redistributable, so
+like pkg/oos this package is not in claimset and these numbers live here.
+
+**The result is mixed, and located.** CD (arrival–depth coupling) FAILS at 1.58 SD — occasion
+mean −0.0684 against the model's −0.1832, over the 0.109 bound by 0.0058. One window lost the
+sign entirely (`corr(depth, arrivals)` = +0.0103). CE (cancellation) passes at 0.99 SD. CF
+(co-movement) passes at **0.24 SD** — the cleanest pass of any signature on any occasion.
+
+**The co-movement result is the meaningful one.** CF was pre-registered as the signature most
+at risk: the model's historical weakness, and at occasion 2 it passed only inside the loosened
+tolerance (1.22 SD). Occasion 3 is an in-distribution morning where the "mornings only" escape
+hatch does not apply, and there the co-movement — the entire point of the counts route — lands
+0.0074 from the model. The counts route's central claim replicates, and best where the test is
+cleanest.
+
+**The arrival side does not replicate, and that is now the open question.** CD passed occasion 2
+(0.78 SD) and fails occasion 3 (1.58 SD): the arrival–depth coupling moved from −0.1267 to
+−0.0684 between occasions and lost its sign in one window. Whether that is the market (the weak
+coupling genuinely varies occasion to occasion) or the instrument (an 8-minute window is too
+short to estimate a small correlation stably) cannot be separated from two occasions; it needs a
+third occasion or longer windows. Recorded as the specific next question, not guessed.
+
+**Nothing is refitted or rescued.** CD's bound is not widened, the between-occasion SD is not
+re-estimated to absorb occasion 3, the model stands exactly as shipped. A guard in pkg/oospool
+(CI-runnable, no data needed) pins the frozen parameters the reference values assume. The
+honest one-line summary: lob_counts is not the first replicated generalisation this project
+hoped for, but its load-bearing signature held and only the weak arrival coupling failed,
+narrowly — so the model is dented, not broken, and the failure points somewhere specific.

@@ -3,6 +3,9 @@ package oospool
 import (
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -62,6 +65,27 @@ func TestOccasion2Regression(t *testing.T) {
 	} {
 		if math.Abs(c.got-c.want) > 0.001 {
 			t.Errorf("oos2 %s = %.4f, BS-BU scored %.4f — the pooling changed", c.name, c.got, c.want)
+		}
+	}
+}
+
+// TestTheFrozenModelReferenceValuesMatchTheShippedConfig guards the pre-registered constants
+// this package scores against. The reference values -0.1832 / -0.0752 / +0.9154 were fixed at
+// BS-BV from cfg/lob_counts.yaml as shipped; they are only valid while those parameters have
+// not moved. This runs in CI without any market data, so a config edit that would invalidate
+// the frozen out-of-sample comparison breaks here rather than silently.
+func TestTheFrozenModelReferenceValuesMatchTheShippedConfig(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join(configDir(), "lob_counts.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, pinned := range []string{
+		"limit_rate: [3.381]", "churn_rate: [1.900]", "damping_gamma: [0.45]",
+		"activity_shape: [0.152367]", "activity_rate: [0.038092]",
+	} {
+		if !strings.Contains(string(source), pinned) {
+			t.Errorf("cfg/lob_counts.yaml no longer has %q — the frozen CD-CG reference values "+
+				"in this package assume it, and any occasion scored against them is void if it moved", pinned)
 		}
 	}
 }

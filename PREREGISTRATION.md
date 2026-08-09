@@ -3310,3 +3310,62 @@ Synthetic, identifiability only. It says nothing about real cancellations, and C
 to rho means this calibration, even working, recovers only the marginal dispersion — the driver's
 TEMPORAL structure would need a different likelihood (a state-space filter), which is out of
 scope here and named so it is not later mistaken for something this delivered.
+
+### Scored, 2026-08-09 — CD FAILS narrowly; CE and CF pass, and CF (the flagged risk) passes cleanly
+Capture: Sunday 2026-08-09, 09:27–09:59 UTC, three windows, five symbols. **480 rows each, 0
+suspect, 0 gaps, none excluded — CG passes.** A genuine second occasion for the frozen model:
+a different day from occasion 2, and a morning.
+
+| window | `corr(d,arr)` | `corr(d,can)` | `corr(arr,can)` |
+|---|---|---|---|
+| 1 | −0.0785 | −0.0204 | +0.9503 |
+| 2 | −0.1371 | −0.0221 | +0.8632 |
+| 3 | **+0.0103** | +0.0593 | +0.9106 |
+| **occasion mean** | **−0.0684** | **+0.0056** | **+0.9080** |
+
+| | model | occasion | gap | tolerance | |
+|---|---|---|---|---|---|
+| **CD** arrival side | −0.1832 | −0.0684 | **0.1148** | 0.109 | **FAIL (1.58 SD)** |
+| **CE** cancellation side | −0.0752 | +0.0056 | 0.0808 | 0.122 | pass (0.99 SD) |
+| **CF** co-movement | +0.9154 | +0.9080 | **0.0074** | 0.046 | **pass (0.24 SD)** |
+
+**CD fails, and it is reported as a fail.** The gap is 0.1148 against a 0.109 bound — over by
+0.0058, at 1.58 SD against a 1.5-SD tolerance. It is marginal, but the bound was fixed before
+the recording and is not moved now; a fail by 0.0058 is a fail. Window 3 is the proximate
+cause: its `corr(depth, arrivals)` came out **+0.0103**, the wrong sign, pulling the occasion
+mean to −0.0684 — weaker than the model's −0.1832 and weaker than occasion 2's −0.1267. The
+arrival–depth coupling did not replicate across occasions: it passed occasion 2 at 0.78 SD and
+fails occasion 3 at 1.58 SD.
+
+**CF passes cleanly, and this is the result worth dwelling on.** Co-movement was the signature
+pre-registered as most at risk — the model's historical weakness, and the one that at occasion
+2 (BU) passed only inside the loosened tolerance, at 1.22 SD. On occasion 3, an in-distribution
+morning where the "estimated from mornings only" escape hatch does not apply, it lands at
++0.9080 — **0.0074 from the model, 0.24 SD, the most comfortable pass of any signature on any
+occasion.** The prediction that named CF as the risk was wrong in the reassuring direction: on
+an occasion inside the tolerance's basis, the co-movement is the model's *strongest* signature,
+not its weakest.
+
+### The two-occasion verdict, stated plainly
+| signature | occasion 2 (Sat afternoon) | occasion 3 (Sun morning) | reading |
+|---|---|---|---|
+| CD arrivals | pass 0.78 SD | **FAIL 1.58 SD** | not stable across occasions |
+| CE cancels | pass 0.56 SD | pass 0.99 SD | holds, loosely |
+| CF co-movement | pass 1.22 SD (loosened) | **pass 0.24 SD** | holds, and cleanly in-distribution |
+
+So the honest frame is **mixed, and it locates the instability**: the co-movement — the whole
+point of the counts route, and the signature every earlier model was weakest on — replicates,
+and best where the test is cleanest. The arrival–depth coupling does not, failing narrowly on
+one occasion because a single window lost the sign. This is neither the "first replicated
+generalisation" a full pass would have been, nor a collapse: it is one signature failing
+marginally while the load-bearing one holds. Two occasions is still not many, and the arrival
+side's instability is now the specific open question, not a diffuse doubt.
+
+### What is NOT done in response
+Nothing is refitted, and CD's bound is not widened to rescue it. The between-occasion SD is not
+re-estimated to include occasion 3 (that would be moving the goalposts after seeing the miss).
+The frozen model stands exactly as shipped; this is recorded as its result, not worked around.
+The obvious next question — is the arrival-side instability a property of the market (the
+coupling genuinely varies occasion to occasion) or of the 8-minute window (too short to
+estimate a weak correlation stably) — needs a third occasion or longer windows to separate, and
+is left open rather than guessed.

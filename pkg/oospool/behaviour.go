@@ -49,6 +49,16 @@ func datDir() string {
 	}
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "dat")
 }
+
+// configDir returns the repo's cfg/ directory, for the frozen-model guard.
+func configDir() string {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		panic("oospool: cannot locate this package's source path")
+	}
+	return filepath.Join(filepath.Dir(thisFile), "..", "..", "cfg")
+}
+
 func segmentPath(occasion string, window int, symbol string) string {
 	return filepath.Join(datDir(), fmt.Sprintf("%sw%d_%s.log", occasion, window, symbol))
 }
