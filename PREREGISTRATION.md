@@ -3210,3 +3210,57 @@ recoverable — but ONLY with `negative_binomial`, not the Poisson family the in
 ship with. The honest next step toward real-data calibration is therefore not more machinery but
 a longer recorded segment and the dispersion-aware likelihood, and it remains gated on the same
 non-redistributable data and calendar-separated occasions as every market comparison in this repo.
+
+## Out of sample, occasion 3 — the same test on a genuinely new occasion, CD-CG
+**Fixed 2026-08-09 ~09:28 UTC, while window 1 records and before a single new row is read.**
+BS-BU (2026-08-08) was cfg/lob_counts.yaml's first out-of-sample pass, and it passed with BU
+only inside a loosened tolerance. One occasion is not replication. This is a second occasion
+for the frozen model, and it re-uses the BS-BV protocol and bounds **identically** — nothing
+is re-estimated, because re-estimating the spread after seeing more data is how a moving
+target hides.
+
+### Frozen, and re-used verbatim
+- **Model**: cfg/lob_counts.yaml exactly as shipped — limit_rate 3.381, churn_rate 1.900,
+  damping_gamma 0.45, driver variance 11.81. A guard asserts these; if they have changed
+  since BS-BV, this result is void, not re-scored.
+- **Model reference values** (in-sample, fixed at BS-BV): arrivals −0.1832, cancels −0.0752,
+  co-movement +0.9154.
+- **Bounds** (1.5 between-occasion SD, from BS-BV, NOT recomputed): arrivals 0.109, cancels
+  0.122, co-movement 0.046.
+- **Pooling**: the occasion's value is the mean over three windows of the five-symbol mean.
+  Any window with a gap or suspect row in any symbol is excluded whole and reported; fewer
+  than three usable windows is reported, not worked around.
+
+### This occasion is MORE in-distribution than occasion 2 was
+BS-BV declared a known weakness: its tolerance was estimated from three occasions all in the
+morning, but occasion 2 was recorded Saturday afternoon (~15:10 UTC) — a time of day with no
+prior data. Occasion 3 is **Sunday ~09:28 UTC, a morning**, close in time-of-day to the Sunday
+occasion the SD basis already contains. So the "estimated from mornings only" escape hatch that
+was live for occasion 2 does NOT apply here: occasion 3 sits inside the basis the tolerance was
+built from. This makes CF (co-movement) a cleaner test than BU was — it cannot pass or fail on
+an out-of-distribution time of day.
+
+### Predictions — the same three, on fresh data
+> **CD — the arrival side.** |−0.1832 − occasion-3 mean| < **0.109**.
+>
+> **CE — the cancellation side.** |−0.0752 − occasion-3 mean| < **0.122**.
+>
+> **CF — the co-movement.** |+0.9154 − occasion-3 mean| < **0.046**. Still the one at risk: the
+> model sits 1.42 SD from the pooled mean on it, and the three prior occasions read +0.9529,
+> +0.9035, +0.9586. If occasion 3 lands near the top of that range the model misses — and this
+> time there is no time-of-day escape hatch.
+>
+> **CG — the data is clean.** Three usable windows, ~480 rows each, no gaps and no suspect rows.
+
+### What each outcome means
+| CD/CE | CF | reading |
+|---|---|---|
+| pass | **pass** | The model predicts a SECOND genuinely-new occasion within known variability, and this one squarely inside the tolerance's basis. Two-for-two out of sample is the first replicated generalisation this project has, and materially stronger than the single BS-BU pass. |
+| pass | **fail** | The depth structure generalises across occasions and the co-movement does not — and with no time-of-day confound available, that would locate the co-movement as the model's specific, stable weakness rather than an artefact of when occasion 2 was taken. |
+| **fail** | — | The model does not replicate out of sample even at loosened tolerances and even on an in-distribution occasion. That would substantially weaken the BS-BU pass rather than confirm it, and put the model's cross-occasion stability back in question. |
+
+### What even a full pass will not establish
+One venue, crypto spot, now four occasions but all mornings-or-one-afternoon, 8-minute windows,
+one seed-ensemble. The standing inference confound — both flows inferred from net depth changes
+— is untouched. Two passes is replication, not proof; the honest frame stays "the model has not
+yet failed out of sample," not "the model is right."
