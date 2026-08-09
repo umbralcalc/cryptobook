@@ -1,0 +1,98 @@
+# OFFLINE calibration of the shared-driver churn model — the CA-CC experiment.
+#
+# Reads a recorded cfg/lob_churn_flow.yaml segment back through the engine's json_log source
+# and runs SMC over THREE parameters: limit_rate, churn_rate, and phi (the driver's
+# dispersion footprint, Var(act)/E(act)^2, truth 6.5625). The likelihood type is a
+# substitution token — pkg/offline runs this twice, once poisson and once negative_binomial,
+# changing nothing else.
+#
+# ── WHY TWO LIKELIHOODS ───────────────────────────────────────────────────────
+#
+# The marginal count law is gamma-Poisson: Var(n) = E(n) + phi*E(n)^2. A Poisson likelihood
+# forces Var = mean, so phi never enters it — the parameter that makes the churn model a
+# churn model is invisible to the family Spike 2.2 used. negative_binomial takes (mean,
+# variance) and so can represent phi. The question is whether an offline SMC recovers it.
+#
+# ── THE INFERENCE FORWARD MODEL ───────────────────────────────────────────────
+#
+# lob_intensity  -> the per-stream MEAN: [limit_rate*act_ref*dt, churn_rate*act_ref*dt,
+#                   market_rate*dt]. act_ref = 4 is the driver mean, a fixed normalisation
+#                   (cfg/lob_counts.yaml's act_ref), so the rates are what set the means.
+# lob_variance   -> the per-stream VARIANCE via Var = mean + phi*mean^2. phi is the third
+#                   particle coordinate. This partition is what a Poisson likelihood ignores.
+# lob_loglike    -> data_comparison against the recorded counts, reading mean and variance
+#                   from the two partitions above.
+data:
+  source:
+    json_log: {path: RECORDED_SEGMENT_PATH}
+macros:
+- type: smc_inference
+  proposal_name: smc_proposals
+  sim_name: smc_particles
+  posterior_name: smc_posterior
+  # Kept identical to cfg/lob_recovery_smc.yaml so ESS behaviour is comparable (CC).
+  num_particles: 160
+  num_rounds: 5
+  seed: 20260728
+  # Wide, and the truth is not centred in any of them.
+  priors:
+  - {type: uniform, lo: 0.5, hi: 6.0}     # limit_rate, truth 3.381
+  - {type: uniform, lo: 0.3, hi: 4.0}     # churn_rate, truth 1.900
+  - {type: uniform, lo: 0.5, hi: 20.0}    # phi,        truth 6.5625
+  param_names: [limit_rate, churn_rate, phi]
+  model:
+    observed_data:
+      name: flow_observed
+      ref: {partition_name: lob_flow}
+    partitions:
+    - name: lob_intensity
+      iteration:
+        type: expression
+        fields: [{name: mean, width: 3}]
+        outputs:
+        - "max(concat(limit_rate * act_ref * dt,
+                      churn_rate * act_ref * dt,
+                      market_rate * dt), floor)"
+      params:
+        # Overwritten per particle each round by param_forwarding below.
+        limit_rate: [3.381]
+        churn_rate: [1.900]
+        # A fixed nuisance parameter, held at truth. This experiment estimates the two
+        # activity-scaled rates and the dispersion, not the unscaled market rate.
+        market_rate: [0.8]
+        act_ref: [4.0]
+        floor: [0.000001]
+      init_state_values: [0.0, 0.0, 0.0]
+      state_history_depth: 2
+    - name: lob_variance
+      iteration:
+        type: expression
+        fields: [{name: var, width: 3}]
+        # Var(n) = mean + phi*mean^2, elementwise. Strictly above the mean for phi > 0, which
+        # negative_binomial requires (it divides by variance - mean).
+        outputs:
+        - "mean + phi * mean * mean"
+      params:
+        phi: [6.5625]
+        mean: [0.0, 0.0, 0.0]
+      params_from_upstream:
+        # Current-step mean from lob_intensity.
+        mean: {upstream: lob_intensity}
+      init_state_values: [0.0, 0.0, 0.0]
+      state_history_depth: 2
+    - name: lob_loglike
+      iteration: {type: data_comparison, likelihood: {type: LIKELIHOOD_TYPE}}
+      params: {cumulative: [1], burn_in_steps: [0]}
+      params_from_upstream:
+        mean: {upstream: lob_intensity}
+        variance: {upstream: lob_variance}
+        # The three recorded counts: n_limit (0), n_cancel (1), n_market (2).
+        latest_data_values: {upstream: flow_observed, indices: [0, 1, 2]}
+      init_state_values: [0.0]
+      state_history_depth: 2
+    loglike_partition: lob_loglike
+    # Each particle coordinate lands in one scalar param, in prior order.
+    param_forwarding:
+      "lob_intensity/limit_rate": [0]
+      "lob_intensity/churn_rate": [1]
+      "lob_variance/phi": [2]

@@ -1,0 +1,55 @@
+# MINIMAL shared-driver churn generator — the clean generative form of the mechanism
+# cfg/lob_counts.yaml added, with the LOB nonlinearity stripped out.
+#
+# One latent gamma driver `act` is drawn per step and SHARED across the arrival and
+# cancellation streams, so those two counts overdisperse (Var > mean) and co-move — the two
+# signatures Spike 2.2 found in real data and the independent-Poisson model could not
+# produce. Marketable flow is left unscaled, exactly as lob_counts leaves it.
+#
+# This is the generator for the CA-CC identifiability experiment (PREREGISTRATION.md). Its
+# job is to emit a recorded stream whose dispersion is KNOWN by construction, so an offline
+# SMC calibration can be asked whether it recovers that dispersion.
+#
+# ── THE ONE NUMBER THIS FILE FIXES ────────────────────────────────────────────
+#
+# The driver is gamma(0.152367, 0.038092): mean = shape/rate = 4, variance = shape/rate^2 =
+# 105. The marginal count law is gamma-Poisson (negative binomial), whose entire dispersion
+# footprint is phi = Var(act)/E(act)^2 = 105/16 = 6.5625, through Var(n) = E(n) + phi*E(n)^2.
+# phi is the parameter the offline calibration is asked to recover. The rates and driver
+# mean are held at cfg/lob_counts.yaml's values so this is the same regime, minus the ladder.
+main:
+  partitions:
+  - name: lob_flow
+    params:
+      limit_rate: [3.381]
+      churn_rate: [1.900]
+      market_rate: [0.8]
+      # gamma(shape, rate): mean 4, variance 105, so phi = 6.5625.
+      activity_shape: [0.152367]
+      activity_rate: [0.038092]
+    init_state_values: [0.0, 0.0, 0.0, 0.0]
+    state_history_depth: 1
+    seed: 20260830
+  expressions:
+  - partition: lob_flow
+    fields:
+    - {name: n_limit}
+    - {name: n_cancel}
+    - {name: n_market}
+    - {name: driver}
+    bindings:
+    # Drawn ONCE per step and shared across the two scaled streams — this single line is the
+    # churn coupling. arrivals and cancellations rise and fall together because the same act
+    # multiplies both.
+    - {name: act, expr: "shared(gamma(activity_shape, activity_rate))"}
+    outputs:
+    - "shared(poisson(limit_rate * act * dt))"
+    - "shared(poisson(churn_rate * act * dt))"
+    - "shared(poisson(market_rate * dt))"
+    - "act"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

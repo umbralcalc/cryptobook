@@ -2546,3 +2546,37 @@ A caveat worth leaving attached: **a pre-registration is now hard to write hones
 Fixing the damping bug required running the corrected model, so its behaviour at
 `haz0` = 0.016 has been seen. A fresh block would carry that contamination and must declare
 it, as AT–AW did.
+## Phase 3 offline calibration: the churn model is recoverable, but needs the right likelihood
+The user selected Phase 3 (offline calibration) after Spike 4.2 closed. Reading the ground
+first found that the existing offline path (cfg/lob_calibrate_from_log.yaml) calibrates the
+OLD independent-Poisson model with a Poisson likelihood — the family Spike 2.2 disproved — and
+that pkg/streaming, which that config's header claims measures its throughput, was never built.
+
+So the fork inside "offline calibration" is: can the CHURN model be calibrated offline, and in
+particular can its identifying parameter — the driver's dispersion phi — be recovered at all?
+Block CA-CC answered it on synthetic flow, where the truth is known and no market segment is
+spent (PREREGISTRATION.md, and pkg/offline pins the numbers).
+
+**The answer is yes, but only with negative_binomial.** A minimal shared-driver churn generator
+(cfg/lob_churn_flow.yaml) emits counts whose dispersion is known by construction (phi = 6.5625).
+Read back through json_log and calibrated by SMC, the two activity-scaled rates recover within
+25% under either likelihood, but phi recovers only under negative_binomial (29% error) and not
+under Poisson (120%, landing near the prior mean). A Poisson likelihood forces Var = mean, so
+phi never enters it — the parameter that makes the churn model a churn model is invisible to the
+family 2.2 used.
+
+**A pre-registration miss, recorded not smoothed.** CB predicted Poisson's phi posterior SD
+would stay within 10% of the prior's; it contracted to 17%, because the adaptive proposal
+narrows an unidentified coordinate regardless of the likelihood. The SD was the wrong statistic;
+the point estimate near the prior mean is the right one. The claim pins the point estimate and
+carries the failed proxy in its limitations, per this repo's rule that a failed pre-registered
+bound is reported, not rewidened.
+
+**What it means for the plan.** Real-data offline calibration is unblocked in machinery but not
+in method: it needs a dispersion-aware likelihood (the inference configs ship Poisson) and long
+segments (phi recovers biased ~30% low on 400 steps, because the heavy gamma tail is
+under-sampled). Both are real constraints, and the market attempt remains gated on the same
+non-redistributable data and calendar-separated occasions as every other market comparison here.
+The dangling pkg/streaming reference in cfg/lob_calibrate_from_log.yaml is now superseded by
+pkg/offline, which measures the thing that actually matters — what is identifiable — rather than
+raw throughput.

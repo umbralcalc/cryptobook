@@ -38,6 +38,7 @@ import (
 	"github.com/umbralcalc/cryptobook/pkg/conservation"
 	"github.com/umbralcalc/cryptobook/pkg/damping"
 	"github.com/umbralcalc/cryptobook/pkg/lob"
+	"github.com/umbralcalc/cryptobook/pkg/offline"
 	"github.com/umbralcalc/cryptobook/pkg/persistent"
 	"github.com/umbralcalc/cryptobook/pkg/priced"
 	"github.com/umbralcalc/cryptobook/pkg/queue"
@@ -62,6 +63,7 @@ var providers = []func() []claims.Claim{
 	ceiling.ObservedBehaviour,      // The co-movement ceiling account, and the matched pair that identified it
 	conservation.ObservedBehaviour, // Volume accounting in the age models, after two defects
 	queue.ObservedBehaviour,        // Spike 4.2 output four: queue position across tick regimes
+	offline.ObservedBehaviour,      // Phase 3: offline recovery of the churn model, and the dispersion likelihood it needs
 	recovery.ObservedBehaviour,     // Spike 1.2: identification, ESS, recovery
 	windowing.ObservedBehaviour,    // Gate 3.4: how calibration degrades with window length
 	stability.ObservedBehaviour,    // Spike 4.2: the one output the minimal model supports

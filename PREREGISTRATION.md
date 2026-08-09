@@ -3171,3 +3171,42 @@ isolates whether the dispersion is identifiable at all, correctly specified, bef
 nonlinearity is allowed to distort φ. If CB holds here, recovering φ through the full damped
 model is the honest follow-on; if it fails on the clean case, the full model cannot do better.
 Synthetic throughout: this measures identifiability, not agreement with any market.
+
+### Scored, 2026-08-09 — CA and CB(neg-binom) and CC pass; the Poisson SD sub-test fails as stated
+Six recorded segments, both likelihoods, `pkg/offline`. Averages over the six:
+
+| | limit_rate | churn_rate | phi | peak ESS |
+|---|---|---|---|---|
+| poisson | 12.0% | 12.4% | **119.7%** | 27.0 |
+| negative binomial | 10.7% | 6.9% | **28.7%** | 78.4 |
+
+- **CA — PASS.** Both rates recover within 25% under both likelihoods. The offline json_log
+  round trip costs the rate estimates nothing.
+- **CB — the substantive claim PASSES; the pre-registered Poisson proxy FAILS.** phi recovers
+  under negative binomial (28.7% < 40%) and not under Poisson (119.7%, landing near the prior
+  mean of ~10.25). But the *specific* test I pre-registered for Poisson non-identification —
+  "posterior SD within 10% of the prior's" — is **wrong and fails**: the SD ratio is 0.17,
+  not < 0.10. The adaptive proposal contracts an unidentified coordinate's proposal even with
+  no likelihood signal, so posterior SD is not a test of non-identification at all. The point
+  estimate landing near the prior mean is, and that is what the claim pins. Recorded as a miss
+  rather than rewidened: I chose the wrong statistic, the right one tells the same story, and
+  the claim carries the failure in its limitations.
+- **CC — PASS.** Peak ESS is 27 (poisson) and 78 (negative binomial), both healthy against
+  cfg/lob_recovery_smc.yaml's ~26, so the offline path mixes as well as the in-memory SMC and
+  CB is about the likelihood, not the plumbing. The correctly-specified likelihood mixing
+  better (78 vs 27) is the expected direction.
+
+**Two findings beyond the pass/fail.** First, even negative binomial recovers phi biased ~30%
+LOW, because a 400-step window under-samples the heavy gamma tail (shape 0.15) that carries the
+dispersion — so offline dispersion recovery is possible but needs long segments to be unbiased,
+which is a real constraint on any future real-data attempt. Second, the minimal shared-driver
+generator reproduces `corr(arrivals, cancels) = 0.984` — the exact +0.98 co-movement Spike 2.2
+measured in real BTCUSDT flow — from one shared latent driver, which is the cleanest statement
+yet of what that signature IS.
+
+### What this settles for Phase 3
+Offline calibration of the churn mechanism is possible, and the parameter that identifies it is
+recoverable — but ONLY with `negative_binomial`, not the Poisson family the inference configs
+ship with. The honest next step toward real-data calibration is therefore not more machinery but
+a longer recorded segment and the dispersion-aware likelihood, and it remains gated on the same
+non-redistributable data and calendar-separated occasions as every market comparison in this repo.

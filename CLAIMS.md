@@ -498,6 +498,38 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** Poisson ceiling minus achieved co-movement, at three (counts, driver variance) settings — baseline penalty 0.07 · penalty via variance 0.08 · penalty via counts 0.06 (asserts penalty via variance > 0.070 (the variance route inflates the penalty), penalty via counts < 0.065 (the counts route does not))
 - **Does not support:** NOT PRE-REGISTERED. Both bounds were set after the measurements, so this is a regression guard on an already-observed result and carries none of the evidential weight of the pre-registered blocks in PREREGISTRATION.md. It is a designed comparison at two matched ceilings, not a sweep, so it establishes the DIRECTION of the effect rather than its functional form — how the penalty scales with driver spread is unmeasured. Model internal: no market number appears in this package, and the comparison that motivated it lives in DECISIONS.md because it needs recorded segments. The account was also stated over the wrong variable twice before it was stated over the right one; it is constant in COUNTS, not in the ceiling, and two earlier blocks read it the other way.
 
+## Phase 3 — Offline calibration
+
+### `the_activity_scaled_rates_recover_offline_under_both_likelihoods`
+
+> Read back through the json_log source that Gate 3.4 selected as the offline architecture, an SMC recovers both activity-scaled rates — the arrival rate and the churn (cancellation) rate — to within 25% of truth, whether the likelihood is Poisson or negative binomial. Both read the mean and the rates set the mean, so the recorded-segment round trip costs the rate estimates nothing. This is the control the dispersion result rests on: the plumbing recovers what it should.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineCalibration/the_activity_scaled_rates_recover_offline_under_both_likelihoods`](pkg/offline/behaviour_test.go)
+- **Observed:** relative error of the posterior-mean rate, averaged over 6 recorded segments, for each (likelihood, rate) pair — poisson limit_rate 0.12 · poisson churn_rate 0.12 · neg-binom limit_rate 0.11 · neg-binom churn_rate 0.07 (asserts poisson limit_rate < 25% (poisson, arrivals), poisson churn_rate < 25% (poisson, churn), neg-binom limit_rate < 25% (neg-binom, arrivals), neg-binom churn_rate < 25% (neg-binom, churn))
+- **Does not support:** NOT PRE-REGISTERED as a package; the CA prediction was fixed in PREREGISTRATION.md but the 25% bar is the same one Phase 1's SMC used and was not re-derived for the offline path. Synthetic: the segment is the generator's own flow, so this is recovery of a known truth, not agreement with a market. The market rate is held fixed at truth as a nuisance parameter and is not among the three estimated.
+
+### `the_driver_dispersion_is_recovered_offline_only_by_the_dispersion_aware_likelihood`
+
+> The driver's dispersion phi — the parameter that makes the churn model a churn model, and the one the independent-Poisson model of Spike 2.2 structurally lacked — is recovered offline by a negative-binomial likelihood (within 40% of truth) and NOT by a Poisson one (posterior mean more than 100% off, landing near the prior mean). A Poisson likelihood forces variance to equal the mean, so phi never enters it; negative binomial takes a separate variance and so can see it. The contrast is the finding: offline calibration of the churn mechanism is possible, but only with a likelihood the inference tier does not use by default.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineCalibration/the_driver_dispersion_is_recovered_offline_only_by_the_dispersion_aware_likelihood`](pkg/offline/behaviour_test.go)
+- **Observed:** relative error of the posterior-mean dispersion phi, averaged over 6 segments, under each likelihood — neg-binom phi 0.29 · poisson phi 1.20 (asserts neg-binom phi < 40% (negative binomial recovers it), poisson phi > 100% (poisson cannot — near the prior mean))
+- **Does not support:** The PRE-REGISTERED test of Poisson non-identification FAILED as literally stated and is reported not rewidened: PREREGISTRATION.md CB predicted Poisson's phi posterior SD would stay within 10% of the prior's, and it contracted to 17%. The adaptive proposal narrows an unidentified coordinate's proposal even with no likelihood signal, so posterior SD is the WRONG discriminator; the point estimate landing near the prior mean (120% off) is the right one, and it is what is pinned here. Two further honest limits: even negative binomial recovers phi biased ~30% LOW, because a 400-step window under-samples the heavy gamma tail (shape 0.15) that carries the dispersion — so this shows phi is identifiable, not that it is unbiased on short segments. And it is a designed synthetic recovery: it says nothing about whether real cancellations carry this driver, only that if they did, the offline path could find it.
+
+### `the_offline_path_mixes_as_well_as_the_in_memory_smc`
+
+> Peak effective sample size recovers across rounds for the offline calibration just as it does for the in-memory SMC of cfg/lob_recovery_smc.yaml (whose peak was ~26): the json_log round trip changes only where the data comes from, not how the inference mixes. So whatever the dispersion result shows is a property of the likelihood, not of the offline plumbing — the control that lets CB be read as being about the likelihood at all. The correctly-specified negative-binomial run mixes markedly better than the misspecified Poisson one, which is itself the expected direction.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineCalibration/the_offline_path_mixes_as_well_as_the_in_memory_smc`](pkg/offline/behaviour_test.go)
+- **Observed:** peak effective sample size out of 160 particles, averaged over 6 segments — poisson peak ESS 27.00 · neg-binom peak ESS 78.36 (asserts poisson peak ESS > 10 (poisson mixes), neg-binom peak ESS > 10 (neg-binom mixes))
+- **Does not support:** NOT PRE-REGISTERED numerically; CC was fixed as a qualitative control (ESS recovers as the in-memory SMC does) and the >10 floor is set well below both observed values rather than derived. Peak ESS across rounds is a coarse health check — it says the sampler did not degenerate in its best round, not that every round was healthy or that the posterior is well-explored.
+
 ## Phase 4 — Stability outputs
 
 ### `a_coarser_tick_lengthens_the_queue_at_each_level`
