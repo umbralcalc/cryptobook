@@ -11,6 +11,16 @@ import (
 
 // TestOfflineCalibration is the binding test named by every claim in behaviour.go.
 func TestOfflineCalibration(t *testing.T) {
+	// Skipped under -short, which the nightly -race job uses. This package runs 24 SMC
+	// calibrations, and SMC under the race detector is pathologically slow — it times out
+	// the per-package limit on a two-core runner. The skip loses no race coverage: this
+	// package adds no concurrency of its own (record and calibrate are sequential Go), and
+	// the engine's SMC concurrency it exercises is the same code pkg/recovery and
+	// pkg/windowing run under -race. The claims themselves are fully verified in the
+	// non-race merge gate. See DECISIONS.md, "Splitting -race off the merge gate".
+	if testing.Short() {
+		t.Skip("skipping the 24-calibration re-measurement under -short (nightly -race)")
+	}
 	measureDir = t.TempDir()
 	persistDir = t.TempDir()
 	for _, claim := range ObservedBehaviour() {

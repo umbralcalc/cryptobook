@@ -2716,3 +2716,17 @@ The honest cost: a race introduced and merged during the day is not caught until
 acceptable here specifically because the only place a race could live — the engine's concurrent
 partition loop — is a pinned dependency this repo does not modify. If that ever changes (a
 downstream Go hook that runs concurrently, say), -race belongs back on the gate.
+
+### Follow-up: pkg/offline timed out the -race job, fixed with -short
+The first push after the split revealed pkg/offline times out the -race per-package limit: it
+runs 24 SMC calibrations (CA-CC's 12 plus CH's 12), and SMC under the race detector is
+pathologically slow — >5 min for the package on a fast laptop, well past 30m on a two-core
+runner. The non-race merge gate runs it in ~12s, so this is purely a -race-multiplier problem,
+not a logic one (the gate passed).
+
+Fix: the binding test skips under `testing.Short()`, and the nightly `race` job runs with
+`-short`. This loses no race coverage — pkg/offline adds no concurrency of its own (record and
+calibrate are sequential Go), and the engine's SMC concurrency it would exercise is the same
+code pkg/recovery and pkg/windowing run under -race unskipped. The offline claims are verified
+in full by the non-race gate. Measured: the merge gate is now ~10 min (327s test + 245s the
+CLAIMS.md re-measurement) against the old ~19, and offline under -race -short returns in ~1.4s.

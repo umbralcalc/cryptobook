@@ -81,4 +81,9 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
-      - run: go test ./... -race -count=1 -timeout 30m
+      # -short skips the packages whose only cost is re-measuring claims through SMC, which
+      # under -race times out the per-package limit on a two-core runner (pkg/offline runs 24
+      # calibrations). Those packages add no concurrency of their own; the engine concurrency
+      # the race detector needs is covered by pkg/recovery and pkg/windowing, which are not
+      # skipped. The skipped packages' claims are verified fully in the non-race `test` gate.
+      - run: go test ./... -race -short -count=1 -timeout 30m
