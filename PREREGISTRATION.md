@@ -3135,3 +3135,39 @@ Synthetic throughout: the truth is the generator's own parameters, so this tests
 and the offline machinery, not agreement with any market. No limb touches recorded Binance data,
 and CB says nothing about whether real cancellations have this driver — only whether, IF they
 did, the offline path could recover it.
+
+### Amended 2026-08-09, before building and before any measurement
+Writing the config sent me to the engine's likelihood registry, and it ships
+`negative_binomial` — the gamma-Poisson marginal, whose (mean, variance) parameterisation
+carries a dispersion the Poisson family cannot. That makes CB sharper than first written, so
+it is restated here BEFORE a single run, with the original left above as the record:
+
+The driver's whole footprint on the marginal counts is a single number, φ = Var(A)/E(A)² —
+the driver's squared coefficient of variation — through `Var(n) = E(n) + φ·E(n)²`. The
+generator's driver is `gamma(0.152367, 0.038092)`: mean 4, variance 105, so **φ_true =
+6.5625**. The experiment is therefore the SAME 3-parameter SMC — `limit_rate` (3.381),
+`churn_rate` (1.900), φ — run twice, changing only the likelihood:
+
+> **CA — the two rates recover under BOTH likelihoods.** `limit_rate` and `churn_rate`
+> land within 25% relative of truth whether the likelihood is Poisson or negative binomial,
+> because both read the mean and the rates set the mean.
+>
+> **CB — φ is recoverable, but only by the dispersion-aware likelihood.** Under negative
+> binomial, φ's posterior mean lands within **40%** of 6.5625 (a looser bar than the rates:
+> a dispersion is a second moment and harder). Under Poisson, φ does not enter the
+> likelihood at all, so its posterior standard deviation stays within **10%** of the prior's
+> — the data cannot move it. The contrast IS the result: the parameter that makes the churn
+> model a churn model is invisible to the family Spike 2.2 used and visible to one the
+> engine already ships.
+>
+> **CC — the offline path is not the cause of anything.** Per-round ESS recovers across
+> rounds for the negative-binomial run as cfg/lob_recovery_smc.yaml's does; if it collapses,
+> CB's negative-binomial limb is confounded and not to be reported.
+
+Scope, stated so it cannot be overread: the generator is a MINIMAL shared-driver churn model
+(one latent `gamma` driver scaling arrivals and cancellations, so they overdisperse and
+co-move), not the full cfg/lob_counts.yaml with its arrival damping. That is deliberate — it
+isolates whether the dispersion is identifiable at all, correctly specified, before the LOB
+nonlinearity is allowed to distort φ. If CB holds here, recovering φ through the full damped
+model is the honest follow-on; if it fails on the clean case, the full model cannot do better.
+Synthetic throughout: this measures identifiability, not agreement with any market.
