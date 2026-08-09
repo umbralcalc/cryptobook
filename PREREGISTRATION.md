@@ -2963,3 +2963,72 @@ generalises is agreement with a *measured* signature.
 
 **The honest next step is more occasions, not a stronger claim.** One success against three
 prior failures is a change of direction, not a settled result.
+
+## Queue position — PLAN.md's fourth stability output, BW–BZ
+
+**Fixed 2026-08-08, before `cfg/lob_queue.yaml` exists.** Spike 4.2's fourth output —
+*queue-position distribution under varying tick regimes* — has been marked NOT ANSWERABLE
+twice: by `pkg/stability` against the minimal generator (no order identity, no prices) and
+by `pkg/priced` against the priced ladder (prices yes, order identity no). This block
+attempts it.
+
+### A correction that has to come first, because it weakens my own justification
+
+`pkg/priced` says the blocker "is not a scoping choice — it is a capability gap: assigning
+k simultaneous arrivals to the first k free slots ... requires a scan across lanes". The
+allocation framing is real, and `scan` closed it in v0.14.0. **But allocation to first-free
+slots is the WRONG semantics for a FIFO queue anyway.** If a mid-queue order cancels, the
+orders behind it move up; they do not leave a hole for a newcomer to jump into. The right
+operation is COMPACTION — stable-partition the survivors to the front, then append arrivals
+behind them — and compaction needs only an exclusive prefix sum of the survivor mask, which
+the lazy-`where` idiom already documented in `cfg/lob_priced.yaml` could always express.
+
+So **this output was probably answerable before v0.14.0**, and the capability gap I recorded
+was a gap in the formulation I happened to reach for, not in the engine. `scan` is used
+below because it is O(n) where that idiom is O(n²), which is the same speed justification
+`cfg/lob_ages.yaml` records — not because it is required. Stated before running anything, so
+it cannot be read as an excuse constructed after the fact.
+
+### The model
+
+Two sides x 4 levels x 8 FIFO slots = 64 order slots, each holding one order's size (0 =
+empty). Position within a level is the slot index; lower is older and nearer the front.
+Per step: cancel each resting order independently, consume from the front of the best
+occupied level for marketable flow, compact survivors forward, append new arrivals behind.
+
+**Tick regime** is a multiplier τ on the ladder's price granularity. A coarser tick makes
+each level cover more price space, so it collects proportionally more arrivals and the
+decay across levels is proportionally faster:
+
+    per-level arrival rate  = limit_rate * τ
+    per-level decay         = arrival_decay * τ
+
+Three regimes: **τ = 0.5 (fine), 1.0 (reference), 2.0 (coarse)**. Nothing else moves.
+
+### Predictions
+
+> **BW — price-time priority holds.** The mean queue position of orders consumed by
+> marketable flow is **< 1.0**, and is **less than half** the mean position of resting
+> orders. The second limb is the real test: the first could pass on short queues alone.
+>
+> **BX — cancellation is position-neutral.** Cancellation is a per-order hazard that reads
+> nothing about position, so the mean position of cancelled orders should match the mean
+> position of resting orders to within **20%** relative.
+>
+> **BY — coarser ticks make longer queues.** Mean occupied slots per level rises
+> **monotonically** across τ = 0.5, 1.0, 2.0.
+>
+> **BZ — and push mass deeper into the queue.** The share of resting orders at position ≥ 4
+> rises **monotonically** across the same three regimes.
+
+BW and BX are structural: they check the queue is a queue. **If either fails the
+implementation is wrong and BY/BZ are not to be reported** — a distribution measured over a
+broken queue is not evidence about tick regimes. BY and BZ are the substantive predictions
+and I do not know their answers.
+
+### What this can never be
+
+Queue position is **unobservable in the permitted feed at any bucket size** — a Binance diff
+stream gives aggregated volume per price, never per-order identity or arrival order. So this
+output is a **model counterfactual and nothing else**. No limb of it will be compared to
+market data, now or later, and any claim arising from it must say so.
