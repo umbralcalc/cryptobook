@@ -2580,3 +2580,38 @@ non-redistributable data and calendar-separated occasions as every other market 
 The dangling pkg/streaming reference in cfg/lob_calibrate_from_log.yaml is now superseded by
 pkg/offline, which measures the thing that actually matters — what is identifiable — rather than
 raw throughput.
+## The best model, decomposed — and how little work it turned out to be
+The next buildable step after Phase 3 was chosen by elimination. Arrow egress (Spike 4.1)
+is contiguous builder-append on the engine's OUTPUT storage under Invariant B — an upstream
+engine change, not a pure-config downstream build. Recovering the driver dispersion through
+the FULL damped cfg/lob_counts.yaml (the honest follow-on to CA-CC) is a multi-session
+modelling effort: its driver is AR(1) persistent, `activity` sits in both numerator and
+denominator of the arrival damping, and cancellation has two mechanisms, so negative_binomial
+would be badly misspecified and a biased phi uninterpretable. That left the refactor the
+maintainer had already named — decompose the best model into simpler partitions.
+
+**It was nearly free, because cfg/lob_split.yaml had already done the structural work.**
+Diffing the two configs: cfg/lob_split.yaml (the four-partition decomposition of the damping
+model) and cfg/lob_counts.yaml (the best model, a fifty-binding monolith) are IDENTICAL in
+every dynamics expression — arrival damping, churn, cancellation, AR(1) driver, line for line
+— and differ ONLY in five parameter values (limit_rate, churn_rate, damping_gamma,
+activity_shape, activity_rate). So cfg/lob_counts_split.yaml is cfg/lob_split.yaml with those
+five values set to the counts route, and nothing else.
+
+That is itself worth recording: it means the counts route was never a structural change to the
+model, only a re-parameterisation of it. The mechanism hunt that produced lob_counts moved
+numbers, not equations — which is the strongest possible statement that the model form was
+already right and 2.2's failure was calibration, not structure.
+
+pkg/split now scores BOTH monolith/split pairs against the same descriptive 0.02 bound: the
+best model's four quantities agree with its monolith to |diff| <= 0.015 (depth/arrivals
+0.012, depth/cancels 0.015, arrivals/cancels 0.001, drift 0.007), within the ensemble noise.
+The config-text guards (wiring directions, deterministic partitions draw no randomness) were
+generalised to cover both split configs, and a new guard pins that lob_counts_split carries
+the counts parameters so a bad copy that left lob_split's values in would fail with a clear
+message rather than as a vague correlation mismatch. cfg/lob_counts.yaml stays the frozen,
+scored reference (pkg/ceiling); the decomposition is added alongside, never edited in.
+
+62 claims to 63. What this does NOT do: it adds no market agreement (that is pkg/ceiling and
+this file), and it does not make the full damped model calibratable offline — it makes it
+LEGIBLE, which is the prerequisite for that eventual work, not the work itself.

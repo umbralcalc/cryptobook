@@ -111,11 +111,48 @@ func measure() (mono, split summary, err error) {
 	return mono, split, err
 }
 
+// measureCountsPair is the same comparison for the BEST model: cfg/lob_counts.yaml (the
+// monolith, at its observable columns) against cfg/lob_counts_split.yaml (the four-partition
+// decomposition, at the observables partition's columns).
+func measureCountsPair() (mono, split summary, err error) {
+	mono, err = measureOne("lob_counts.yaml", "lob_counts")
+	if err != nil {
+		return mono, split, err
+	}
+	split, err = measureOneAt("lob_counts_split.yaml", "observables", 0, 1, 3)
+	return mono, split, err
+}
+
+// reproductionObservations and reproductionThresholds are the four scored quantities and
+// their descriptive bound, shared by both monolith/split comparisons.
+func reproductionObservations(mono, split summary) []claims.Observation {
+	return []claims.Observation{
+		{Label: "depth vs arrivals", Value: math.Abs(mono.depthArrival.Mean - split.depthArrival.Mean)},
+		{Label: "depth vs cancellations", Value: math.Abs(mono.coupling.Mean - split.coupling.Mean)},
+		{Label: "arrivals vs cancellations", Value: math.Abs(mono.coMovement.Mean - split.coMovement.Mean)},
+		{Label: "depth drift", Value: math.Abs(mono.drift.Mean - split.drift.Mean)},
+	}
+}
+
+func reproductionThresholds() []claims.Threshold {
+	t := make([]claims.Threshold, 4)
+	for i := range t {
+		t[i] = claims.Threshold{
+			ObsIndex: i, GreaterThan: false, Ref: agreementBound, RefLabel: "0.02 (descriptive)",
+		}
+	}
+	return t
+}
+
 // ObservedBehaviour pins the agreement between the two expressions of the model.
 func ObservedBehaviour() []claims.Claim {
 	mono, split, err := measure()
 	if err != nil {
 		panic("split: measuring observed behaviour: " + err.Error())
+	}
+	countMono, countSplit, err := measureCountsPair()
+	if err != nil {
+		panic("split: measuring the counts decomposition: " + err.Error())
 	}
 	return []claims.Claim{
 		{
@@ -158,6 +195,36 @@ func ObservedBehaviour() []claims.Claim {
 				{Label: "arrivals vs cancellations", Value: math.Abs(mono.coMovement.Mean - split.coMovement.Mean)},
 				{Label: "depth drift", Value: math.Abs(mono.drift.Mean - split.drift.Mean)},
 			},
+			Binding: claims.Binding{
+				TestName: "TestPartitionedModelMatchesMonolith",
+				TestFile: "pkg/split/behaviour_test.go",
+			},
+		},
+		{
+			ID: "the_best_model_decomposes_the_same_four_ways",
+			Statement: "The decomposition proved on the damping model transfers to the BEST " +
+				"model unchanged. cfg/lob_counts.yaml — the counts-route model that meets all " +
+				"three pooled targets and passed the first out-of-sample test — is structurally " +
+				"identical to cfg/lob_split.yaml and differs only in five parameter values, so " +
+				"cfg/lob_counts_split.yaml is that same monolith in four legible partitions " +
+				"(driver, flows, book, observables). All four scored quantities agree with the " +
+				"cfg/lob_counts.yaml monolith to within the descriptive 0.02 bound, so the best " +
+				"model now has a modular form that is a re-expression rather than a new model.",
+			Gate:  "2.2",
+			Phase: phase,
+			Data:  dataset,
+			Unit: "absolute difference between the monolithic and partitioned 32-member " +
+				"ensemble means, for the counts-route model",
+			Limitations: "Inherits every limit of the damping-model comparison it mirrors: not " +
+				"exact and cannot be (each partition has its own seed and draw order), so " +
+				"agreement within the noise is the strongest available statement and a real " +
+				"difference below ~0.006 is invisible. The 0.02 bound is descriptive and " +
+				"post-hoc. It establishes that THIS model re-expresses four ways, riding on the " +
+				"same fact that only the driver separation moves a number at all. It does NOT " +
+				"re-verify the counts model's market agreement — that is pkg/ceiling and " +
+				"DECISIONS.md — only that the partitioned form is the same model as the monolith.",
+			Thresholds:   reproductionThresholds(),
+			Observations: reproductionObservations(countMono, countSplit),
 			Binding: claims.Binding{
 				TestName: "TestPartitionedModelMatchesMonolith",
 				TestFile: "pkg/split/behaviour_test.go",

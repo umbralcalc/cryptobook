@@ -458,6 +458,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** fraction of resting volume covered by the configured level-depth slice, over 8 members of 2000 steps — lob_ages 1.00 · lob_ages12 1.00 · lob_ages_finite 1.00 (asserts lob_ages > 0.999999 (the damping must see all of it), lob_ages12 > 0.999999 (the damping must see all of it), lob_ages_finite > 0.999999 (the damping must see all of it))
 - **Does not support:** NOT PRE-REGISTERED, and narrow by design. It confirms the damping sums the right NUMBER of slots, not that it sums the right ones or weights them correctly — a config slicing the wrong offset at full width would pass. It assumes the 2x8 (side, level) layout every age model currently shares, and a model departing from that would need this taught to it rather than quietly passing.
 
+### `the_best_model_decomposes_the_same_four_ways`
+
+> The decomposition proved on the damping model transfers to the BEST model unchanged. cfg/lob_counts.yaml — the counts-route model that meets all three pooled targets and passed the first out-of-sample test — is structurally identical to cfg/lob_split.yaml and differs only in five parameter values, so cfg/lob_counts_split.yaml is that same monolith in four legible partitions (driver, flows, book, observables). All four scored quantities agree with the cfg/lob_counts.yaml monolith to within the descriptive 0.02 bound, so the best model now has a modular form that is a re-expression rather than a new model.
+
+- **Discharges gate:** 2.2
+- **Data:** synthetic — the same model expressed two ways, monolithic and partitioned, compared as ensemble means. No market data
+- **Enforced by:** [`TestPartitionedModelMatchesMonolith/the_best_model_decomposes_the_same_four_ways`](pkg/split/behaviour_test.go)
+- **Observed:** absolute difference between the monolithic and partitioned 32-member ensemble means, for the counts-route model — depth vs arrivals 0.00 · depth vs cancellations 0.00 · arrivals vs cancellations 0.00 · depth drift 0.00 (asserts depth vs arrivals < 0.02 (descriptive), depth vs cancellations < 0.02 (descriptive), arrivals vs cancellations < 0.02 (descriptive), depth drift < 0.02 (descriptive))
+- **Does not support:** Inherits every limit of the damping-model comparison it mirrors: not exact and cannot be (each partition has its own seed and draw order), so agreement within the noise is the strongest available statement and a real difference below ~0.006 is invisible. The 0.02 bound is descriptive and post-hoc. It establishes that THIS model re-expresses four ways, riding on the same fact that only the driver separation moves a number at all. It does NOT re-verify the counts model's market agreement — that is pkg/ceiling and DECISIONS.md — only that the partitioned form is the same model as the monolith.
+
 ### `the_counts_route_holds_all_three_correlation_signatures_at_once`
 
 > cfg/lob_counts.yaml is the first model in this project whose three correlation signatures sit simultaneously where the pooled Binance measurements do. Model-internal here: it reads corr(depth, arrivals), corr(depth, cancels) and corr(arrivals, cancels) together, having reached them through a driver whose variance and counts were computed from the ceiling algebra rather than fitted, with only churn_rate adjusted and only on mean depth.
