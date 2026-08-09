@@ -40,6 +40,7 @@ import (
 	"github.com/umbralcalc/cryptobook/pkg/lob"
 	"github.com/umbralcalc/cryptobook/pkg/persistent"
 	"github.com/umbralcalc/cryptobook/pkg/priced"
+	"github.com/umbralcalc/cryptobook/pkg/queue"
 	"github.com/umbralcalc/cryptobook/pkg/recovery"
 	"github.com/umbralcalc/cryptobook/pkg/recycled"
 	"github.com/umbralcalc/cryptobook/pkg/split"
@@ -60,6 +61,7 @@ var providers = []func() []claims.Claim{
 	split.ObservedBehaviour,        // Step 3: the partitioned model reproduces the monolith
 	ceiling.ObservedBehaviour,      // The co-movement ceiling account, and the matched pair that identified it
 	conservation.ObservedBehaviour, // Volume accounting in the age models, after two defects
+	queue.ObservedBehaviour,        // Spike 4.2 output four: queue position across tick regimes
 	recovery.ObservedBehaviour,     // Spike 1.2: identification, ESS, recovery
 	windowing.ObservedBehaviour,    // Gate 3.4: how calibration degrades with window length
 	stability.ObservedBehaviour,    // Spike 4.2: the one output the minimal model supports

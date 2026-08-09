@@ -1,0 +1,145 @@
+# PER-ORDER FIFO QUEUES — PLAN.md's fourth stability output, and the last one.
+#
+# Predictions BW-BZ were fixed in PREREGISTRATION.md and committed before this file
+# existed.
+#
+# ── WHAT THIS ADDS, AND THE CORRECTION IT RESTS ON ────────────────────────────
+#
+# Spike 4.2's queue-position output was marked NOT ANSWERABLE twice: by pkg/stability (the
+# minimal generator has no order identity and no prices) and by pkg/priced (prices yes,
+# order identity no). pkg/priced called the blocker a capability gap — "assigning k
+# simultaneous arrivals to the first k free slots requires a scan across lanes".
+#
+# THAT FRAMING WAS WRONG, and the pre-registration says so before any of this ran.
+# First-free-slot allocation is not FIFO. When a mid-queue order cancels, the orders behind
+# it MOVE UP; they do not leave a hole for a newcomer to jump into. Allocation-to-holes
+# would let a late order inherit an early position, which is precisely the thing a queue
+# forbids.
+#
+# The right operation is COMPACTION — stable-partition the survivors to the front, then
+# append arrivals behind them. Its only non-trivial ingredient is an exclusive prefix sum of
+# the survivor mask, which the lazy-`where` idiom in cfg/lob_priced.yaml could already
+# express. So this output needed no engine feature at all, and NOTHING BELOW USES scan:
+# every prefix count here is a sum of an elementwise product, which at 64 slots is O(n^2)
+# and entirely affordable. The capability gap was in the formulation I reached for, not in
+# the engine.
+#
+# ── THE STATE ─────────────────────────────────────────────────────────────────
+#
+# 2 sides x 4 levels x 8 FIFO slots = 64 slots, flattened:
+#
+#   index = side*32 + level*8 + position       position 0 is the FRONT (oldest)
+#
+# A slot holds 1 if an order rests there and 0 if empty. ALL ORDERS ARE UNIT SIZE — a
+# real simplification, stated here rather than buried: queue position is about order
+# ORDERING, so homogeneous sizes cost nothing for this output, but it does mean nothing
+# here speaks to size-weighted queue value.
+#
+# ── THE STEP, IN ORDER ────────────────────────────────────────────────────────
+#
+#   1. marketable flow consumes from the FRONT, walking levels outward
+#   2. surviving orders cancel independently, at a hazard that reads nothing about position
+#   3. survivors COMPACT forward, preserving their relative order
+#   4. new arrivals APPEND behind them; anything past position 7 is dropped (finite queue)
+#
+# Order matters: an order consumed by a trade cannot also cancel, so the cancellation draw
+# is taken over `alive` (occupied minus hit) rather than over everything resting.
+#
+# ── TICK REGIME ───────────────────────────────────────────────────────────────
+#
+# `tick` is a multiplier on price granularity. A coarser tick makes each level cover more
+# price space, so it collects proportionally more arrivals AND the decay across levels is
+# proportionally faster:
+#
+#   per-level arrival rate = limit_rate * tick
+#   per-level decay        = arrival_decay * tick
+#
+# Nothing else moves between regimes. pkg/queue sweeps tick = 0.5, 1.0, 2.0.
+#
+# ── WHAT THIS CAN NEVER BE ────────────────────────────────────────────────────
+#
+# Queue position is UNOBSERVABLE in the permitted feed at any bucket size: a Binance diff
+# stream gives aggregated volume per price and never per-order identity or arrival order.
+# This is a MODEL COUNTERFACTUAL and nothing else. No limb of it is compared to market data.
+main:
+  partitions:
+  - name: lob_queue
+    params:
+      # Arrival intensity at the innermost level, per unit tick, decaying outwards.
+      limit_rate: [1.2]
+      arrival_decay: [0.35]
+      # Per resting order, per step. Reads NOTHING about position — that is what makes
+      # BX a real test rather than a tautology.
+      cancel_prob: [0.15]
+      # Marketable orders per unit time across both sides, split evenly.
+      market_rate: [1.0]
+      half: [0.5]
+      # THE REGIME KNOB. 1.0 is the reference; pkg/queue substitutes 0.5 and 2.0.
+      tick: [1.0]
+    init_state_values:
+      [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+       1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+       0, 0, 0, 0, 0, 0, 0]
+    state_history_depth: 1
+    seed: 20260830
+  expressions:
+  - partition: lob_queue
+    fields:
+    - {name: slots, width: 64}
+    # Numerator/denominator pairs rather than ratios: a per-step mean position is undefined
+    # on a step where nothing was hit or cancelled, and averaging defined-only steps would
+    # silently weight thin steps equally with busy ones. pkg/queue pools them.
+    - {name: rest_pos_sum}
+    - {name: rest_count}
+    - {name: fill_pos_sum}
+    - {name: fill_count}
+    - {name: cancel_pos_sum}
+    - {name: cancel_count}
+    - {name: deep_count}
+    bindings:
+    # Per-slot coordinates, computed once.
+    - {name: side, expr: "each(64, i, floor(i / 32))"}
+    - {name: grp, expr: "each(64, i, floor(i / 8))"}
+    - {name: pos, expr: "each(64, i, i - 8 * floor(i / 8))"}
+    - {name: lvl, expr: "grp - 4 * side"}
+    # Consumption order within a side: level-major, front-first inside a level. This single
+    # quantity is what gives price-time priority — nearest level first, oldest order first.
+    - {name: ord, expr: "lvl * 8 + pos"}
+    - {name: occ, expr: "where(slots > 0, 1, 0)"}
+    # 1. MARKETABLE FLOW. Buys consume the ask side, sells the bid side.
+    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+    - {name: sweep, expr: "each(64, i, where(slice(side, i, 1) > 0, mkt_buy, mkt - mkt_buy))"}
+    # How many resting orders sit ahead of this one on its own side. A sum of an
+    # elementwise product — no scan, and the prefix is exact rather than approximate.
+    - {name: ahead, expr: "each(64, i, sum(where(side == slice(side, i, 1), 1, 0) * where(ord < slice(ord, i, 1), 1, 0) * occ))"}
+    - {name: hit, expr: "occ * where(ahead < sweep, 1, 0)"}
+    # 2. CANCELLATION, over what the trade did not take.
+    - {name: alive, expr: "occ - hit"}
+    - {name: cancel, expr: "binomial(alive, cancel_prob)"}
+    - {name: survive, expr: "alive - cancel"}
+    # 3. COMPACTION. dest is each survivor's new position: how many survivors are ahead of
+    # it WITHIN ITS OWN LEVEL. Scattering by dest preserves relative order, which is what
+    # makes this a queue rather than a bag.
+    - {name: dest, expr: "each(64, i, sum(where(grp == slice(grp, i, 1), 1, 0) * where(pos < slice(pos, i, 1), 1, 0) * survive))"}
+    - {name: compacted, expr: "each(64, k, sum(where(grp == floor(k / 8), 1, 0) * survive * where(dest == k - 8 * floor(k / 8), 1, 0)))"}
+    # 4. ARRIVALS, appended behind the survivors. Level index within a side is g - 4*(g/4).
+    - {name: nsurv, expr: "each(8, g, sum(where(grp == g, survive, 0)))"}
+    - {name: arr, expr: "each(8, g, poisson(limit_rate * tick * exp(-arrival_decay * tick * (g - 4 * floor(g / 4))) * dt))"}
+    - {name: appended, expr: "each(64, k, where(k - 8 * floor(k / 8) >= slice(nsurv, floor(k / 8), 1), 1, 0) * where(k - 8 * floor(k / 8) < slice(nsurv, floor(k / 8), 1) + slice(arr, floor(k / 8), 1), 1, 0))"}
+    - {name: next_slots, expr: "min(compacted + appended, 1)"}
+    outputs:
+    - "next_slots"
+    - "sum(pos * occ)"
+    - "sum(occ)"
+    - "sum(pos * hit)"
+    - "sum(hit)"
+    - "sum(pos * cancel)"
+    - "sum(cancel)"
+    - "sum(where(pos >= 4, occ, 0))"
+  simulation:
+    output_condition: {type: every_step}
+    output_function: {type: stdout}
+    termination_condition: {type: number_of_steps, max_steps: 400}
+    timestep_function: {type: constant, stepsize: 1.0}
+    init_time_value: 0.0

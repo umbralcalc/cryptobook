@@ -10,12 +10,20 @@
 //	spread response to an arrival-intensity shock    NOW ANSWERABLE
 //	fraction of liquidity surviving a large order    NOW ANSWERABLE
 //	depth recovery after a liquidity event           already answerable
-//	queue-position distribution across tick regimes  STILL NOT ANSWERABLE
+//	queue-position distribution across tick regimes  ANSWERED ELSEWHERE (pkg/queue)
 //
-// The fourth needs per-order identity, which is not a scoping choice but a
-// capability gap: assigning k simultaneous arrivals to the first k free slots
-// requires a scan across lanes that the expressions DSL cannot express. See
-// STOCHADEX_GAPS.md entry 1.
+// CORRECTION, 2026-08-08. This package used to say the fourth output "is not a
+// scoping choice but a capability gap: assigning k simultaneous arrivals to the
+// first k free slots requires a scan across lanes that the expressions DSL cannot
+// express". That was wrong, and cfg/lob_queue.yaml now answers the output using NO
+// scan at all.
+//
+// Allocation to first-free slots is not FIFO. When a mid-queue order cancels the
+// orders behind it MOVE UP; they do not leave a hole for a newcomer to jump into.
+// The right operation is COMPACTION, whose only non-trivial ingredient is an
+// exclusive prefix sum — which the lazy-`where` idiom documented in this very
+// config could always express. The gap was in the formulation reached for, not in
+// the engine. See pkg/queue and PREREGISTRATION.md BW-BZ.
 //
 // # The spread is an output, not a parameter
 //

@@ -29,6 +29,13 @@
 //
 //	depth recovery following a liquidity event      ANSWERABLE
 //
+// Those three verdicts are about THIS model and remain correct for it. All three
+// have since been answered by richer models: cfg/lob_priced.yaml added prices, an
+// emergent spread and orders that walk the book (pkg/priced, outputs one and two),
+// and cfg/lob_queue.yaml added per-order FIFO queues (pkg/queue, output four). Spike
+// 4.2 is four of four; what stays true here is that the MINIMAL generator supports
+// exactly one of them.
+//
 // # Why the fourth one works
 //
 // Depth is what this model is about. Arrivals add at a fixed rate per level and

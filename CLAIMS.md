@@ -500,6 +500,46 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 
 ## Phase 4 — Stability outputs
 
+### `a_coarser_tick_lengthens_the_queue_at_each_level`
+
+> Mean occupied slots per level rises monotonically as the tick coarsens across 0.5, 1.0 and 2.0. A coarser tick makes each level span more price, so it collects proportionally more arrivals while the decay across levels steepens by the same factor — liquidity concentrates into fewer, longer queues. This is the substantive half of PLAN.md's fourth output and its answer was not known when it was predicted.
+
+- **Discharges gate:** 4.2
+- **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
+- **Enforced by:** [`TestQueuePosition/a_coarser_tick_lengthens_the_queue_at_each_level`](pkg/queue/behaviour_test.go)
+- **Observed:** mean occupied FIFO slots per level, at tick 0.5 / 1.0 / 2.0 — fine (tick 0.5) 2.42 · reference (tick 1.0) 4.12 · coarse (tick 2.0) 4.83 (asserts values increase in order)
+- **Does not support:** The queue is capped at 8 slots per level, and the coarse regime runs close enough to that cap that the rise from 1.0 to 2.0 is COMPRESSED by saturation rather than being the model's unconstrained response. The direction is therefore trustworthy and the magnitude is not; a deeper queue would show a larger gap. The tick parameterisation is also a modelling choice — rate and decay scaled by the same factor — and a real venue's tick change need not act that cleanly.
+
+### `a_coarser_tick_pushes_resting_orders_deeper_into_the_queue`
+
+> The share of resting orders sitting at position 4 or worse rises monotonically as the tick coarsens, from under a tenth to about a third. This is the distributional statement the length claim cannot make: queues do not merely get longer on average, the mass moves back, so a typical order joins a coarse-tick book with materially more ahead of it and waits through more of the queue before reaching the front.
+
+- **Discharges gate:** 4.2
+- **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
+- **Enforced by:** [`TestQueuePosition/a_coarser_tick_pushes_resting_orders_deeper_into_the_queue`](pkg/queue/behaviour_test.go)
+- **Observed:** share of resting orders at position >= 4, at tick 0.5 / 1.0 / 2.0 — fine (tick 0.5) 0.08 · reference (tick 1.0) 0.22 · coarse (tick 2.0) 0.33 (asserts values increase in order)
+- **Does not support:** Position 4 of 8 is an arbitrary cut chosen before measuring, and the same saturation that compresses the length claim applies here. It is a statement about where orders SIT, not how long they WAIT — this package never measures time-to-fill, which is the quantity a trader would actually want and which would need per-order age tracking this model does not carry.
+
+### `cancellation_is_position_neutral_within_the_queue`
+
+> The mean position of a cancelled order matches the mean position of a resting one to within 20% at every tick regime, so cancellation neither favours nor spares the front of the queue. This makes the tick-regime results below interpretable: a hazard that quietly preferred deep orders would flatten the queue-position distribution by itself, and the shift attributed to the tick would be the cancellation rule instead.
+
+- **Discharges gate:** 4.2
+- **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
+- **Enforced by:** [`TestQueuePosition/cancellation_is_position_neutral_within_the_queue`](pkg/queue/behaviour_test.go)
+- **Observed:** absolute difference in mean position, cancelled vs resting, relative — fine (tick 0.5) 0.05 · reference (tick 1.0) 0.02 · coarse (tick 2.0) 0.02 (asserts fine (tick 0.5) < 20% relative, reference (tick 1.0) < 20% relative, coarse (tick 2.0) < 20% relative)
+- **Does not support:** The measured deviation is small but SYSTEMATICALLY POSITIVE — cancelled orders sit slightly deeper than resting ones — and that is expected rather than noise: marketable flow removes front orders first, so the cancellation draw is taken over a population already depleted at the front. The claim bounds that bias rather than denying it. It also holds only for the hazard as configured, which reads nothing about position; a position-dependent rule would break it, and that would be a modelling choice rather than a defect.
+
+### `compaction_leaves_every_level_a_contiguous_queue`
+
+> Within every price level, the occupied slots are always a contiguous prefix: no order rests behind an empty slot, and no slot holds anything but one order or none. This is what distinguishes a queue from a bag of orders. When a mid-queue order cancels the orders behind it move up rather than leaving a hole, so no later arrival can inherit an earlier position, and the position an order holds is its true place in arrival order rather than an artefact of which slot happened to be free.
+
+- **Discharges gate:** 4.2
+- **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
+- **Enforced by:** [`TestQueuePosition/compaction_leaves_every_level_a_contiguous_queue`](pkg/queue/behaviour_test.go)
+- **Observed:** occupied slots sitting behind an empty one, counted over 1900 steps x 8 levels per member — fine (tick 0.5) 0.00 · reference (tick 1.0) 0.00 · coarse (tick 2.0) 0.00 (asserts fine (tick 0.5) < 0.5 (i.e. exactly none), reference (tick 1.0) < 0.5 (i.e. exactly none), coarse (tick 2.0) < 0.5 (i.e. exactly none))
+- **Does not support:** A structural check on the implementation, not a finding about markets — it says the model does what it claims, which is the weakest useful thing a test can say. It is a GATE: PREREGISTRATION.md states the tick-regime results are not to be reported if this or the priority check fails. It does not verify that arrival ORDER across levels is faithful, only that within a level the ordering is internally consistent.
+
 ### `depth_recovery_after_a_liquidity_event_is_faster_when_cancellation_is_faster`
 
 > After a liquidity event removes 90% of resting depth, the book refills, and it refills faster the higher the cancellation rate is. That is not a paradox: the same rate that empties a queue also sets how quickly it relaxes back to its own equilibrium, so a book that cancels aggressively is also a book that recovers quickly — to a shallower level.
@@ -509,6 +549,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Enforced by:** [`TestDepthRecoveryExpectedBehaviour/depth_recovery_after_a_liquidity_event_is_faster_when_cancellation_is_faster`](pkg/stability/behaviour_test.go)
 - **Observed:** steps until total resting depth returns to 90% of its pre-shock mean, averaged over 5 seeds — at 0.10 23.20 · at 0.15 11.40 · at 0.225 6.00 (asserts values decrease in order, at 0.225 < 10 steps)
 - **Does not support:** A counterfactual about this model, and Spike 2.2 established that this model does not reproduce real order flow — so it is not a statement about any real book's resilience. It also depends on the recovery threshold: depth fluctuates by roughly a sixth of its mean here, so a stricter threshold would measure noise as well as relaxation.
+
+### `marketable_flow_consumes_from_the_front_of_the_queue`
+
+> Orders consumed by marketable flow sit far nearer the front than a resting order does — below position 1 in absolute terms, and below half the mean resting position in relative terms. Price-time priority is not imposed anywhere in the config: it falls out of counting how many resting orders lie ahead of each one on its own side and consuming those with fewest ahead. The relative limb is the real test, since the absolute one could pass on short queues alone.
+
+- **Discharges gate:** 4.2
+- **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
+- **Enforced by:** [`TestQueuePosition/marketable_flow_consumes_from_the_front_of_the_queue`](pkg/queue/behaviour_test.go)
+- **Observed:** mean queue position of a consumed order (0 = front), and that position as a fraction of the mean resting position — fine (tick 0.5) 0.16 · reference (tick 1.0) 0.23 · coarse (tick 2.0) 0.26 · fine (tick 0.5), vs resting 0.12 · reference (tick 1.0), vs resting 0.11 · coarse (tick 2.0), vs resting 0.10 (asserts fine (tick 0.5) < position 1.0, fine (tick 0.5), vs resting < 0.5 x the mean resting position, reference (tick 1.0) < position 1.0, reference (tick 1.0), vs resting < 0.5 x the mean resting position, coarse (tick 2.0) < position 1.0, coarse (tick 2.0), vs resting < 0.5 x the mean resting position)
+- **Does not support:** Confirms priority holds, which is a property built into the consumption rule rather than discovered — a useful check that the rule was implemented, not evidence about real books. It says nothing about whether real venues honour price-time priority, which varies by venue and order type. All orders here are UNIT SIZE, so nothing in it speaks to size-weighted queue value or to priority under partial fills.
 
 ### `recovery_time_is_set_by_the_cancellation_rate_not_the_arrival_rate`
 

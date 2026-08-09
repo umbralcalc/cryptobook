@@ -42,11 +42,25 @@ deliberate NON-gap — Gate 3.4 selected the architecture that makes the blockin
 correct rather than a workaround — and entry 4 exists so the next reader does not go
 looking for a layer that was never designed. Neither should become an issue.
 
-**Entry 1 was the one that mattered**, and it is the reason this file exists in the form it
-does: it was the only gap that ever forced a modelling decision. Order identity was
-unsayable, so PLAN.md's queue-position stability output could not be answered. `scan`
-closes it, and Gate 3.4's resolution is what placed the fix in the engine rather than in
-downstream Go — a `scan` primitive concerns the expressiveness of forward simulation.
+**Entry 1 was a real gap, but I overstated what it blocked — corrected 2026-08-08.** The
+gap itself stands exactly as verified: there is no fold across `each` lanes, confirmed three
+independent ways, and `scan` closes it. What was wrong is the CONSEQUENCE this file claimed
+for it: that "order identity was unsayable, so PLAN.md's queue-position stability output
+could not be answered".
+
+`cfg/lob_queue.yaml` now answers that output and **uses no `scan` anywhere**. Order identity
+needs COMPACTION, not allocation-to-free-slots — when a mid-queue order cancels the orders
+behind it move up rather than leaving a hole for a newcomer — and compaction's only
+non-trivial ingredient is an exclusive prefix sum, which the lazy-`where` idiom in this same
+file's own notes could always express. So order identity was sayable all along; I reached
+for the allocation framing and recorded its difficulty as an engine limitation.
+
+`scan` remains worth having on its own merits — it is O(n) where the prefix-sum idiom is
+O(n²), which is why `cfg/lob_ages.yaml` uses it at 128 slots — and the vector-accumulator
+case is genuinely inexpressible without it. But **no output was ever blocked on it**, and
+this file should not have said one was. The lesson is the one DECISIONS.md keeps recording:
+a capability claimed absent because the first formulation was awkward deserves the same
+adversarial check as a claim that a model works.
 
 ### One entry was filed wrongly and withdrawn, which is why this section exists
 

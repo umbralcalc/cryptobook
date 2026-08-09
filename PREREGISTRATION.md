@@ -3032,3 +3032,49 @@ Queue position is **unobservable in the permitted feed at any bucket size** — 
 stream gives aggregated volume per price, never per-order identity or arrival order. So this
 output is a **model counterfactual and nothing else**. No limb of it will be compared to
 market data, now or later, and any claim arising from it must say so.
+
+### Scored, 2026-08-08 — all four pass, and the gate passes first
+
+**The structural gate passes.** Occupancy is binary everywhere and no level ever holds an
+order behind an empty slot, at any regime: compaction leaves each level a contiguous
+prefix, so a position is a true place in arrival order rather than an artefact of which
+slot was free. Both guards were verified to FAIL on their own defect before being trusted —
+removing compaction gives 12,167 order-violating slots, and reversing consumption order
+puts the mean fill position at 1.476.
+
+| | measured (tick 0.5 / 1.0 / 2.0) | verdict |
+|---|---|---|
+| gate: orders behind an empty slot | 0 / 0 / 0 | pass |
+| BW fill position < 1.0 | 0.16 / 0.23 / 0.26 | **pass** |
+| BW fill < 0.5 x resting position | 0.12 / 0.11 / 0.10 | **pass** |
+| BX cancel position within 20% of resting | 5% / 2% / 2% | **pass** |
+| BY mean queue length rises | 2.42 → 4.12 → 4.83 | **pass** |
+| BZ share at position ≥ 4 rises | 0.08 → 0.22 → 0.33 | **pass** |
+
+**PLAN.md's Spike 4.2 is now four of four.** `pkg/stability` answered one against the
+minimal generator, `pkg/priced` took it to three, and this takes it to four.
+
+#### Two things that make this a weaker result than the table looks
+
+**BW and BX were near-tautologies and are recorded as such.** Consumption is defined by
+counting how many orders lie ahead, and the cancellation hazard is defined to read nothing
+about position, so both predictions test that the implementation matches its own
+specification. They earn their place as a GATE on BY/BZ, not as findings. The one
+non-trivial thing BX surfaced is that cancelled orders sit *systematically slightly deeper*
+than resting ones — because marketable flow depletes the front first, so the hazard draws
+from a population already thinned there. Small, one-directional, and explained.
+
+**BY's magnitude is compressed by saturation.** The queue holds 8 slots and the coarse
+regime runs near that cap, so the 1.0 → 2.0 step understates the unconstrained response.
+The direction is trustworthy; the size is not. Left as measured rather than re-run with a
+deeper queue, because widening the model after seeing the result is the edit this file
+exists to forbid.
+
+#### And the capability-gap correction stands
+
+Nothing in `cfg/lob_queue.yaml` uses `scan`. Every prefix count is a sum of an elementwise
+product, which the DSL could always express. **The queue-position output did not need
+v0.14.0**, and `pkg/priced`'s claim that it was blocked by a capability gap was wrong — it
+was blocked by the formulation I reached for. The upstream `scan` work stands on its own
+merits (it is O(n) where this is O(n²), which matters at 128+ slots) but it cannot be
+justified by this output, and STOCHADEX_GAPS.md has been corrected to say so.
