@@ -3264,3 +3264,49 @@ One venue, crypto spot, now four occasions but all mornings-or-one-afternoon, 8-
 one seed-ensemble. The standing inference confound — both flows inferred from net depth changes
 — is untouched. Two passes is replication, not proof; the honest frame stays "the model has not
 yet failed out of sample," not "the model is right."
+
+## Does offline dispersion recovery survive a PERSISTENT driver? CH
+**Fixed 2026-08-09, before the config exists.** CA-CC established that an offline
+negative-binomial SMC recovers a shared driver's dispersion phi when the driver is IID gamma
+per step. The full cfg/lob_counts.yaml adds two things the clean case lacks: an AR(1)
+persistent driver, and an arrival damping with the driver in its denominator. This block
+isolates the FIRST — persistence alone, no damping — because a biased result on the full model
+could not be attributed otherwise. (The second cancellation mechanism is not a confound:
+lob_counts sets cancel_rate 0, so cancellation is pure churn.)
+
+### The generator
+cfg/lob_churn_flow.yaml's shared-driver churn, but with the driver made persistent exactly as
+lob_counts does it: `act = 0.8*prev + 0.2*gamma(0.152367, 0.038092)`. Measured marginal
+dispersion of that stationary process: mean 4.07, variance 12.0, **phi_marginal = 0.725**
+(formula (1−ρ)/(1+ρ)·Var(gamma)/E² = 0.2/1.8·105/16 = 0.729). Persistence SMOOTHS the driver, so
+its marginal phi (0.725) is far below the IID gamma's (6.5625) — a different, smaller target.
+
+### The subtlety this tests
+A per-step negative-binomial likelihood fits the MARGINAL mean and variance of each count and
+treats counts as independent given the intensity. A persistent driver leaves the marginal
+count law gamma-Poisson-like — Var(n) = E(n) + phi_marginal·E(n)² still holds — but makes
+consecutive counts autocorrelated, which the likelihood neither models nor sees. Two distinct
+predictions follow:
+
+> **CH-1 — the marginal dispersion still recovers.** Under negative binomial, phi's posterior
+> mean lands within **40%** of 0.725 (the same bar CB used), because the marginal relationship
+> is intact regardless of temporal structure.
+>
+> **CH-2 — but persistence costs precision, and the estimate is blind to the persistence
+> itself.** phi recovers WORSE than the IID case did relative to its own truth is NOT
+> predicted (the bar is the same); what IS predicted is that the offline SMC never estimates
+> rho and cannot: a persistent driver and an IID driver with the same marginal phi produce the
+> same per-step likelihood, so they are indistinguishable to this calibration. This is stated
+> as a KNOWN LIMITATION to be demonstrated, not a pass/fail — the demonstration is that
+> swapping the generator's persistence while holding phi_marginal fixed leaves the recovered
+> phi unchanged within noise.
+
+If CH-1 holds, the persistence confound is benign for dispersion recovery and only the damping
+(the next block) can break it. If CH-1 fails, the autocorrelation degrades the estimate even
+though the marginal relationship is intact, which would itself locate the difficulty.
+
+### What this is not
+Synthetic, identifiability only. It says nothing about real cancellations, and CH-2's blindness
+to rho means this calibration, even working, recovers only the marginal dispersion — the driver's
+TEMPORAL structure would need a different likelihood (a state-space filter), which is out of
+scope here and named so it is not later mistaken for something this delivered.
