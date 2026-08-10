@@ -3404,3 +3404,46 @@ full cfg/lob_counts.yaml, whose driver is exactly this persistent process, would
 dispersion biased low unless the window is long — which stacks with the damping confound (the
 next block, unbuilt) rather than replacing it. The honest sequence stands: persistence is
 measured, the damping is next, and only then the full model.
+
+## Does offline dispersion recovery survive the arrival DAMPING? CI
+**Fixed 2026-08-09, before measuring.** CH established that the offline dispersion recovery
+survives a persistent driver (biased down, but recovers). This block isolates the SECOND and
+last confound the full cfg/lob_counts.yaml adds: the arrival damping, which puts the latent
+driver in a denominator. It uses the shipped model directly — no new generator — because the
+two streams of lob_counts already differ in exactly the way that isolates the effect.
+
+### The asymmetry this exploits
+In cfg/lob_counts.yaml the cancellation stream is CLEAN churn — `poisson(churn_rate·act·dt)`,
+linear in the driver — so its marginal dispersion is the driver's, phi_marginal = 0.729. The
+arrival stream is DAMPED — `poisson(limit_rate·act·dt / (1 + depth·(act/act_ref)^γ / scale))` —
+with the driver in the denominator as well as the numerator. That denominator is a negative
+feedback: a high-activity step raises arrivals through the numerator but simultaneously raises
+the damping through `(act/act_ref)^γ`, so the arrival count's response to the driver is
+SUBLINEAR. A sublinear response to the driver transmits less of the driver's variance, so the
+arrival stream's empirical dispersion must sit BELOW the driver's.
+
+### Prediction
+> **CI-1 — cancellation dispersion recovers the driver's.** The cancellation stream's empirical
+> phi = (Var−mean)/mean² is within **25%** of 0.729, because that stream is linear in the driver.
+>
+> **CI-2 — arrival dispersion is suppressed by the damping.** The arrival stream's empirical phi
+> is **below** the cancellation stream's by a clear margin (arrival phi < 0.8 × cancellation
+> phi). The damping's negative feedback is the cause, so an offline negative-binomial calibration
+> — which assumes a single dispersion shared across streams — cannot fit both at once: it would
+> be pulled between a clean cancellation phi and a suppressed arrival phi.
+
+### Why this closes the Phase 3 question rather than opening more
+If CI-2 holds, the two confounds are accounted for: persistence biases the marginal dispersion
+DOWN on finite windows (CH), and the arrival damping suppresses the arrival dispersion BELOW the
+cancellation's (CI). Both push a single-phi offline calibration off the truth in the full model,
+in known directions. The honest Phase 3 conclusion is then that offline calibration of
+cfg/lob_counts.yaml needs a likelihood that models the damping and the shared latent driver
+per-stream — a state-space filter, not the per-step negative binomial — which is a modelling
+phase, not a wiring fix, and is named here as the boundary rather than attempted. If CI-2 FAILS
+— arrival and cancellation dispersions agree — the damping is benign for dispersion and the
+single-phi calibration is viable, which would REOPEN real-data calibration as the next step.
+
+### What this is not
+Synthetic, model-internal. It measures a property of cfg/lob_counts.yaml's two flow streams; it
+says nothing about real order flow, and it does not itself run a calibration — it predicts what a
+calibration would face, from the streams' dispersions measured directly.
