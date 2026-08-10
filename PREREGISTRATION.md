@@ -3447,3 +3447,29 @@ single-phi calibration is viable, which would REOPEN real-data calibration as th
 Synthetic, model-internal. It measures a property of cfg/lob_counts.yaml's two flow streams; it
 says nothing about real order flow, and it does not itself run a calibration — it predicts what a
 calibration would face, from the streams' dispersions measured directly.
+
+### Scored, 2026-08-09 — both pass, and the two confounds are shown to stack
+Measured on cfg/lob_counts.yaml, 32-member ensemble, dispersion phi = (Var−mean)/mean² of each
+summed flow stream.
+
+| | measured | prediction | |
+|---|---|---|---|
+| driver phi_marginal | 0.729 | (the truth a perfect finite window would show) | — |
+| **CI-1** cancellation phi | **0.561** | within 25% of 0.729 → −23% | **pass** (marginal) |
+| **CI-2** arrival phi | **0.438** | < 0.8 × cancellation → ratio 0.780 | **pass** (marginal) |
+
+Both pass, both marginally, and the marginality is itself the result. CI-1's −23% is not
+noise: the cancellation stream is clean churn, linear in the driver, so a perfect window would
+give 0.729 — the 23% shortfall is the CH persistence bias, the SAME finite-window
+under-exploration, now visible in the full model's own driver. CI-2 then suppresses arrivals a
+further 22% below cancellations via the damping. So the two confounds **stack**: persistence
+pulls both streams down (0.729 → 0.561), the arrival damping pulls arrivals down again (0.561 →
+0.438). Pinned as a robust ordering claim (arrival < cancellation < driver) in pkg/offline.
+
+**Phase 3's offline-calibration question is now answered, in the negative for the full model
+with the current inference tier.** A per-step negative-binomial calibration assumes one
+dispersion shared across streams. The full model presents two that differ by construction and a
+third (the truth) that neither equals. Recovering the true dispersion needs a likelihood that
+models the AR(1) persistence and the damping and the shared latent driver per stream — a
+state-space filter. That is a modelling phase, named here as the boundary, not attempted. CI-2
+failing would have reopened real-data calibration; it did not.

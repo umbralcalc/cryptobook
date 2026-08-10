@@ -560,6 +560,16 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 - **Observed:** peak effective sample size out of 160 particles, averaged over 6 segments — poisson peak ESS 27.00 · neg-binom peak ESS 78.36 (asserts poisson peak ESS > 10 (poisson mixes), neg-binom peak ESS > 10 (neg-binom mixes))
 - **Does not support:** NOT PRE-REGISTERED numerically; CC was fixed as a qualitative control (ESS recovers as the in-memory SMC does) and the >10 floor is set well below both observed values rather than derived. Peak ESS across rounds is a coarse health check — it says the sampler did not degenerate in its best round, not that every round was healthy or that the posterior is well-explored.
 
+### `the_two_confounds_stack_arrival_below_cancellation_below_driver`
+
+> In the full cfg/lob_counts.yaml the empirical dispersion an offline calibration would see is ordered: arrival phi < cancellation phi < the driver's marginal 0.729. Two distinct effects stack. PERSISTENCE (CH) pulls BOTH streams below the driver's marginal on a finite window, because an AR(1) driver under-explores its own dispersion — so even the clean churn cancellation stream, linear in the driver, sits below 0.729. The arrival DAMPING (CI) then pulls arrivals below cancellations, because the driver in the damping denominator makes the arrival response sublinear and so transmits less of the driver's variance. A per-step negative-binomial calibration assumes ONE dispersion shared across streams; it cannot fit two that differ by construction, and neither equals the truth.
+
+- **Discharges gate:** 3.4
+- **Data:** synthetic — a recorded shared-driver churn segment read back through the engine's json_log source. Model-internal: measures identifiability, no market data
+- **Enforced by:** [`TestOfflineBehaviour/the_two_confounds_stack_arrival_below_cancellation_below_driver`](pkg/offline/behaviour_test.go)
+- **Observed:** negative-binomial dispersion phi = (Var-mean)/mean^2 of each summed flow stream, 32-member ensemble — arrival phi (damped) 0.44 · cancellation phi (clean churn) 0.56 (asserts arrival phi (damped) < 0.52 (arrival, damped, below cancellation), cancellation phi (clean churn) > 0.50 (cancellation, above arrival), cancellation phi (clean churn) < 0.729 (cancellation below the driver's marginal))
+- **Does not support:** NOT PRE-REGISTERED as bounds — the pre-registered CI-1/CI-2 predictions (cancellation within 25% of 0.729; arrival below 0.8x cancellation) both passed but marginally (23%, ratio 0.780), and are scored in PREREGISTRATION.md; this claim pins the ROBUST ordering with margin, as a regression guard. It is model-internal and synthetic: it characterises what an offline calibration of THIS model would face, not what real order flow shows, and it does not itself run a calibration. The conclusion it supports — that the full model needs a state-space likelihood, not per-step negative binomial — is a modelling boundary named, not a result about markets.
+
 ## Phase 4 — Stability outputs
 
 ### `a_coarser_tick_lengthens_the_queue_at_each_level`

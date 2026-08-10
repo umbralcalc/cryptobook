@@ -2730,3 +2730,26 @@ calibrate are sequential Go), and the engine's SMC concurrency it would exercise
 code pkg/recovery and pkg/windowing run under -race unskipped. The offline claims are verified
 in full by the non-race gate. Measured: the merge gate is now ~10 min (327s test + 245s the
 CLAIMS.md re-measurement) against the old ~19, and offline under -race -short returns in ~1.4s.
+## Phase 3 offline calibration: the boundary is reached, and it is a likelihood, not a wiring gap
+Three synthetic blocks settle what offline calibration of the churn model can and cannot do with
+the inference tier as it ships. CA-CC: on the CLEAN case (IID gamma driver, no damping) a
+negative-binomial SMC recovers the dispersion phi well — the offline machinery works. CH: making
+the driver AR(1) persistent biases the recovered phi DOWNWARD on finite windows (the driver
+under-explores its own dispersion) and the calibration is blind to the persistence itself. CI:
+the arrival damping suppresses the arrival stream's dispersion below the cancellation's, because
+the driver in the damping denominator makes the arrival response sublinear.
+
+Put together (pkg/offline pins each), the full cfg/lob_counts.yaml presents an offline
+negative-binomial calibration with three different dispersions where it assumes one: the driver's
+true 0.729, the persistence-biased cancellation 0.561, and the further-damped arrival 0.438. It
+cannot fit them at once, and none is the truth.
+
+**So real-data offline calibration of the churn model is NOT unblocked, and the blocker is
+named precisely.** It is not a wiring gap (the json_log offline path works, proven at Gate 3.4)
+and not a missing engine feature. It is that the per-step negative-binomial likelihood is
+misspecified for a model with a persistent latent driver and depth damping — recovering the true
+dispersion needs a state-space filter that carries the driver as a latent state and models the
+damping. That is a modelling phase in its own right. It is recorded here as the boundary this
+project reached rather than attempted, so a future reader knows the offline path was explored to
+its edge and knows exactly what the next step would require. This is the honest close of the
+Phase 3 line under Gate 3.4's "inference stays downstream" resolution.

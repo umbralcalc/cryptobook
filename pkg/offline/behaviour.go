@@ -238,5 +238,6 @@ func ObservedBehaviour() []claims.Claim {
 			},
 			Binding: binding,
 		},
+		dampingClaims()[0],
 	}
 }
