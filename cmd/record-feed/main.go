@@ -11,7 +11,7 @@
 //
 // # Offline only, on purpose
 //
-// This records; it does not calibrate. PLAN.md's Gate 3.4 (who owns a live
+// This records; it does not calibrate. Gate 3.4 (who owns a live
 // calibration loop) is open and reserved for the maintainer, and record-then-replay
 // sits inside every branch of it — including the deferred one, which scopes Phase 3
 // to "offline calibration on recorded streams only". Nothing here should grow a

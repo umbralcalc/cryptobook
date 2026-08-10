@@ -8,7 +8,7 @@ import (
 // Recorder drives a Book and an Aggregator from a message stream and emits one
 // state row per bucket. It performs no I/O.
 //
-// That is the point. PLAN.md's Spike 3.3 warns that a live feed makes -race
+// That is the point. Spike 3.3 warns that a live feed makes -race
 // failures probabilistic — "a clean run proves less than it appears to" — and
 // requires a recorded-feed replay harness so race testing is deterministic. This
 // type IS that harness: feed it messages and clock ticks and it behaves

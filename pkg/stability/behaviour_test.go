@@ -81,7 +81,7 @@ func TestShockConstantsMatchTheConfig(t *testing.T) {
 
 // TestUnanswerableOutputsAreNotFaked is the audit's teeth.
 //
-// PLAN.md lists four stability outputs and says unanswerable ones must be MARKED AS
+// there are four stability outputs and says unanswerable ones must be MARKED AS
 // SUCH rather than approximated. Three are structurally impossible here, so nothing
 // in this package may quietly start reporting them — and the reason each is
 // impossible is checkable against the model itself rather than taken on trust.

@@ -3,7 +3,7 @@
 //
 // # Why this is the riskiest code in the project
 //
-// PLAN.md calls Spike 3.1 the highest-risk item, and the reason is worth restating
+// The design calls Spike 3.1 the highest-risk item, and the reason is worth restating
 // where the code lives: a dropped update corrupts the book, and the corruption is
 // INVISIBLE IN AGGREGATE STATISTICS. Spread and depth summaries look entirely
 // normal while the book state is wrong, so a calibration on corrupted state
@@ -29,7 +29,7 @@
 //
 // # What happens on a gap
 //
-// PLAN.md's branches were: resnapshot and mark the interval suspect (preferred);
+// the branches were: resnapshot and mark the interval suspect (preferred);
 // hard fail (acceptable early, unworkable long-running); tolerate silently
 // (unacceptable). This implements the preferred one, and the marking is the part
 // that matters — Apply returns ErrSequenceGap so the caller must handle it, and

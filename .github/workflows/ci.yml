@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     # No Postgres service container, deliberately — see DECISIONS.md.
     #
-    # Phase 0 stood one up because PLAN.md required it by Phase 3. Gate 3.4 then
+    # Phase 0 stood one up because the design required it by Phase 3. Gate 3.4 then
     # established that Phase 3's premise does not hold: the engine has no
     # data-agreement or schema-negotiation layer, and its Postgres source stanza was
     # verified by reading the code rather than by needing a live database. So the

@@ -1,9 +1,9 @@
 // Package crypto holds the residual diagnostics for the recorded crypto segment —
-// PLAN.md's Spike 2.2, run against real market data for the first time.
+// Spike 2.2, run against real market data for the first time.
 //
 // # The result is negative, and it is the useful kind
 //
-// PLAN.md puts Spike 2.2 before believing any calibration, on the reasoning that
+// The design puts Spike 2.2 before believing any calibration, on the reasoning that
 // "residuals bad across the board → the model form is wrong, not the parameters".
 // Measured against Binance BTCUSDT spot, that is where this lands, and the specific
 // failure is worse than "the fit is loose":
@@ -73,7 +73,7 @@ const (
 // FixturePath returns the committed capture the diagnostics run against.
 //
 // The segment is committed rather than re-recorded so these numbers regenerate in
-// CI without a network — which is also the replay harness PLAN.md's Spike 3.3 asks
+// CI without a network — which is also the replay harness Spike 3.3 asks
 // for ("capture a live segment, replay it in CI"). Re-recording would make every
 // claim here move on every run and pin nothing.
 func FixturePath() string {

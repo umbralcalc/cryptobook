@@ -236,7 +236,7 @@ func TestLotDiscretisation(t *testing.T) {
 }
 
 func TestSuspectPropagation(t *testing.T) {
-	// PLAN.md requires the marking to reach the calibration rather than a log line.
+	// the marking must to reach the calibration rather than a log line.
 	t.Run("marking reaches the row", func(t *testing.T) {
 		agg := NewAggregator(1, testEdges)
 		agg.OpenBucket(standardBook())

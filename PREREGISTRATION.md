@@ -1,6 +1,6 @@
 # Pre-registered thresholds
 
-PLAN.md, Spike 1.2: *"define the tolerance **before** running; do not tune it to the
+The design, Spike 1.2: *"define the tolerance **before** running; do not tune it to the
 result."* This file is that commitment, kept separately from the results so the
 order is auditable rather than asserted.
 
@@ -116,7 +116,7 @@ being tuned.
 
 ### What would count as failure
 
-PLAN.md's Spike 2.2 branches turn on where residuals are bad. Recorded here so the
+Spike 2.2 branches turn on where residuals are bad. Recorded here so the
 branch is chosen against a stated bar:
 
 - Predictions 1 and 2 confirmed, 3 holding → the parametric form is usable with
@@ -2964,7 +2964,7 @@ generalises is agreement with a *measured* signature.
 **The honest next step is more occasions, not a stronger claim.** One success against three
 prior failures is a change of direction, not a settled result.
 
-## Queue position — PLAN.md's fourth stability output, BW–BZ
+## Queue position — the fourth stability output, BW–BZ
 
 **Fixed 2026-08-08, before `cfg/lob_queue.yaml` exists.** Spike 4.2's fourth output —
 *queue-position distribution under varying tick regimes* — has been marked NOT ANSWERABLE
@@ -3051,7 +3051,7 @@ puts the mean fill position at 1.476.
 | BY mean queue length rises | 2.42 → 4.12 → 4.83 | **pass** |
 | BZ share at position ≥ 4 rises | 0.08 → 0.22 → 0.33 | **pass** |
 
-**PLAN.md's Spike 4.2 is now four of four.** `pkg/stability` answered one against the
+**Spike 4.2 is now four of four.** `pkg/stability` answered one against the
 minimal generator, `pkg/priced` took it to three, and this takes it to four.
 
 #### Two things that make this a weaker result than the table looks

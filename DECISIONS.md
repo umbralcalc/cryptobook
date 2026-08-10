@@ -1,6 +1,6 @@
 # Decision log
 
-PLAN.md's rule: a spike is complete when the decision it gates has been made and
+the rule: a spike is complete when the decision it gates has been made and
 recorded, *with the evidence that forced it*. This file is that record. Each entry
 names the gate, the branch selected, and the evidence — or states that the gate is
 open and why.
@@ -33,7 +33,7 @@ a sibling repo's layout as a template.
 
 ### (2) Postgres service container in CI — stood up, then removed
 
-**Status: removed 2026-07-29.** It was live for Phase 0 as PLAN.md requires
+**Status: removed 2026-07-29.** It was live for Phase 0 by design
 ("needed from Phase 3; establish now so the schema work isn't blocked later"), and
 it never had a user.
 
@@ -95,13 +95,13 @@ reference. `models/cardgen` is importable from here
 module).
 
 [pkg/claims](pkg/claims/claims.go) therefore wraps `cardgen.Claim` and uses
-`cardgen.Verify` unchanged, adding the four things PLAN.md's standing constraints
+`cardgen.Verify` unchanged, adding the four things the standing constraints
 need and `cardgen` has no reason to carry:
 
 | Field | Why it is required, not optional |
 |---|---|
 | `Gate` | A resolved gate must be traceable to evidence, not to a commit message. |
-| `Data` | Phase 2 (crypto spot) and Phase 3 (crypto perpetuals) are **two calibrations of different markets**. Naming the dataset per claim is the mechanical guard against a reader merging them — the risk PLAN.md flags under "Scope discipline". |
+| `Data` | Phase 2 (crypto spot) and Phase 3 (crypto perpetuals) are **two calibrations of different markets**. Naming the dataset per claim is the mechanical guard against a reader merging them — the risk the design flags under "Scope discipline". |
 | `Limitations` | "Honest limitation reporting" becomes a required field rather than a discipline someone must remember at writeup time. A claim without stated limits will not validate. |
 | `Binding` | Per claim, not per file — claims here come from many tests across phases, so `cardgen`'s single-`Binding` renderer does not fit and is replaced. |
 
@@ -115,9 +115,9 @@ now carries twenty-one claims.
 
 ---
 
-## Verification of PLAN.md's `⚠️ UNVERIFIED` assumptions
+## Verification of the `⚠️ UNVERIFIED` assumptions
 
-PLAN.md requires these to be checked before building on them, and mismatches
+these must to be checked before building on them, and mismatches
 reported rather than worked around. Checked against `umbralcalc/stochadex` — first at
 `v0.13.0`, now pinned at **`v0.13.1`** (see the engine findings below).
 
@@ -198,7 +198,7 @@ The `driver`/`dsn` form goes through `database/sql`, so it reaches any
 Postgres-wire-compatible database whose driver is compiled in — relevant if the
 Phase 3 sink is not a local Postgres.
 
-**Correction to how this was first reported here.** PLAN.md describes a pending
+**Correction to how this was first reported here.** The design describes a pending
 SKILL.md edit blocked on exactly this information, and this log initially said the
 edit was now unblocked. That was wrong: the engine's own
 `.claude/skills/stochadex-model/SKILL.md` **already documented the Postgres source
@@ -207,7 +207,7 @@ plugin copy of that skill (version 0.5.3), which surfaces only `csv` and `json_l
 
 So there was nothing to unblock, and the field spellings above were confirmed from
 the code rather than from either copy — which is the right habit regardless, and is
-what PLAN.md asks for ("must be read from the codebase, not guessed"). The operational
+what the design asks for ("must be read from the codebase, not guessed"). The operational
 lesson is narrower than a documentation gap: **a cached skill can lag its repo, so a
 config surface that looks undocumented may simply be documented somewhere the cache
 has not caught up with.** Worth checking the repo before concluding a capability is
@@ -230,7 +230,7 @@ step. Escalated, and resolved by the maintainer — see below.**
 
 ### The finding
 
-PLAN.md's framing says: *"Replaces synthetic parameters in `umbralcalc/lobsim` with
+the framing says: *"Replaces synthetic parameters in `umbralcalc/lobsim` with
 fitted ones. The domain model largely exists; this project is calibration, ingress/
 egress, and validation."*
 
@@ -251,7 +251,7 @@ answer is that the generative model does not exist in a form this stack can step
 all. Phase 1 recovers parameters *from the model's own generative process*, which
 presupposes that process runs as stochadex partitions.
 
-This was reported rather than worked around, per PLAN.md's instruction that a
+This was reported rather than worked around, per the instruction that a
 workaround here silently changes the architecture, and escalated to the maintainer
 because each branch changes what the project is.
 
@@ -302,7 +302,7 @@ model, and are marked as such rather than approximated.
 ## Spike 1.2 — sampler viability
 
 **Result: identification is sound; the importance sampler was degenerate; SMC fixes
-it. Gate 1.2 is RESOLVED — the escalation was raised as PLAN.md requires and then
+it. Gate 1.2 is RESOLVED — the escalation was raised by design and then
 settled on measurement.** Thirteen claims in [CLAIMS.md](CLAIMS.md) carry the
 evidence; the tolerance was fixed in advance in
 [PREREGISTRATION.md](PREREGISTRATION.md) and did not move.
@@ -362,7 +362,7 @@ uncertainty, and this sampler cannot supply uncertainty on anything.
 
 ### Escalation, and its resolution
 
-PLAN.md: *"Recovery works but ESS collapses → this is the documented switch signal.
+The design: *"Recovery works but ESS collapses → this is the documented switch signal.
 Escalate: the EnKF/SMC question arrives earlier than planned and is a methodology
 decision, not an implementation one."* Escalated as required, and then — on the
 maintainer's instruction to settle it — decided on measurement rather than argument.
@@ -431,7 +431,7 @@ comparison harness is what it should be measured in.
 ## Spike 3.1 — sequence-gap handling
 
 **Branch selected: gap detected → resnapshot and resume, marking the interval
-suspect.** PLAN.md's preferred branch, and the only one it considers workable for
+suspect.** the preferred branch, and the only one it considers workable for
 long-running collection. The alternatives were hard-fail (acceptable early,
 unworkable later) and silent tolerance (explicitly unacceptable).
 
@@ -439,7 +439,7 @@ unworkable later) and silent tolerance (explicitly unacceptable).
 
 ### Why this got built before anything else in the phase
 
-PLAN.md calls this the highest-risk item, and the reason survives restating: a
+this is the highest-risk item, and the reason survives restating: a
 dropped update corrupts the book, and **the corruption is invisible in aggregate
 statistics.** Spread and depth summaries look entirely normal while the state is
 wrong, so a calibration on corrupted state produces plausible parameters that mean
@@ -478,7 +478,7 @@ answer to Spike 3.3 — the risky logic is deterministic and testable off-line, 
 
 ### What remains
 
-The suspect *flag* — PLAN.md requires the marking to "propagate into the
+The suspect *flag* — the marking must to "propagate into the
 calibration", not merely to be detected. That needs the collector and the recorded
 row shape, which are the next piece: every bucket a gap touches carries a
 data-quality column, and calibration excludes suspect intervals rather than trusting
@@ -617,14 +617,14 @@ Two other pre-registered predictions, scored honestly:
 
 ### Branch selected
 
-PLAN.md's Spike 2.2 branches: residuals acceptable → parametric form suffices, defer
+Spike 2.2 branches: residuals acceptable → parametric form suffices, defer
 ONNX; acceptable except in one identifiable place → Phase 5 scoped to that
 component; **bad across the board → the model form is wrong, not the parameters;
 return to the domain model before proceeding to Phase 3.**
 
 The third. This is not one identifiable component failing — the coupling that
 identifies the model is absent and the likelihood family is wrong by three orders of
-magnitude. **Phase 5 (ONNX) does not proceed on this evidence**: PLAN.md is right
+magnitude. **Phase 5 (ONNX) does not proceed on this evidence**: that is right
 that adding a learned component to a model that is structurally wrong produces an
 unconvincing artifact, and a learned inter-arrival distribution would not supply the
 missing churn mechanism either.
@@ -651,7 +651,7 @@ out the narrowest version of "wrong market" without touching the asset-class ver
 ## Spike 3.1 — propagation half, discharged
 
 The remaining half of Spike 3.1 (recorded above as "half-discharged") is now closed.
-PLAN.md required the suspect marking to reach the calibration rather than a log
+The design required the suspect marking to reach the calibration rather than a log
 line, and the chain runs end to end:
 
 	gap -> ErrSequenceGap -> the interval is marked -> column 10 of the row
@@ -667,7 +667,7 @@ synthetically.
 
 ## Spike 3.3 — replay harness, partially discharged
 
-PLAN.md asks for "a recorded-feed replay harness that makes race testing
+The design asks for "a recorded-feed replay harness that makes race testing
 deterministic. Capture a live segment, replay it in CI."
 
 The capture is committed at `testdata/btcusdt_depth.log` (480 rows, 52 KB) and the
@@ -682,46 +682,18 @@ rather than driving the network shell. That is the remaining piece, and it is sm
 
 ---
 
-## Data access policies — and what they cost us
+## Data access policy — and what it costs
 
-**2026-07-29.** The data licence was read before pushing anything. It excludes
-redistribution, so **no market data, raw or derived, is committed.**
-[README.md](README.md) quotes it in full; the operative words are the licence "solely as
-necessary to allow you to receive the Binance Services for **non-commercial personal or
-internal business use**".
+The Binance licence permits use but not redistribution, so **no market data, raw or derived,
+is committed**; `dat/` and `testdata/` are git-ignored. (A process note: the first fixtures
+were committed before the licence was read. Nothing was pushed, so the fix was cheap — but the
+check belonged before the data entered the repo.)
 
-Aggregation does not open an escape route: Binance's definition of Intellectual Property
-Rights names **database rights** explicitly. And Binance binds on access rather than
-registration — this project holds no account, but recording public streams is still
-"accessing the Binance Platform".
-
-### The order of operations was wrong
-
-The fixtures were committed first and the licences read afterwards. Nothing was
-pushed, so nothing was published and the fix was cheap — but the check belonged
-before the data entered the repository, not after. Recorded because the cheapness of
-the recovery here was luck, not process.
-
-### What it costs, stated rather than glossed
-
-The Spike 2.2 diagnostics are now **the one set of results in this repo that CI
-cannot re-check**. Concretely:
-
-- `testdata/` is git-ignored; `pkg/crypto` skips on a fresh clone, naming the command
-  that regenerates its input.
-- It is not registered in `internal/claimset`, so it does not reach the generated
-  `CLAIMS.md`. Registering it would make the page depend on a file a fresh clone lacks,
-  and `TestClaimsUpToDate` would then fail for whoever had less data.
-- Its numbers live here, as prose with provenance, which is the honest place for a
-  result nothing can automatically re-verify.
-- `CLAIMS.md` says on its own face that measurements needing non-redistributable
-  data are excluded, so a reader counting claims cannot mistake the omission for
-  completeness.
-
-**This is a genuine weakening of the claim↔test↔result bond** that Phase 0 built and
-that every other result in the repo leans on. It is accepted because the alternative
-is redistributing data under a licence that forbids it. It is not a precedent for
-loosening the bond anywhere else.
+The cost is that market-comparison results are **the one set CI cannot re-check**: their tests
+skip on a fresh clone, they are not registered in `internal/claimset`, and their numbers live
+here as prose with provenance rather than in the generated `CLAIMS.md`. That is a genuine
+weakening of the claim↔test↔result bond, accepted because the alternative is redistributing data
+under a licence that forbids it — not a precedent for loosening the bond elsewhere.
 
 The one mitigation that genuinely works is re-recordability: a segment can be regenerated
 from public endpoints in minutes, so `pkg/replication` states its findings as **bounds any
@@ -737,7 +709,7 @@ about the page.
 
 ## Spike 4.2 — counterfactual output suite: one of four is supportable
 
-PLAN.md lists four stability outputs and gates on **which are actually answerable**,
+there are four stability outputs and gates on **which are actually answerable**,
 instructing that unanswerable ones be *marked as such rather than approximated*,
 because "an honestly absent output is worth more than a plausible one that the
 calibration doesn't support". The audit is against the model's structure and needs
@@ -783,7 +755,7 @@ construction*, since the relaxation timescale contains no arrival term — so it
 confirms the implementation matches its own mathematics rather than telling us
 anything independent about markets.
 
-That is the honest state of PLAN.md's "the outputs are the framing" argument at this
+That is the honest state of the "the outputs are the framing" argument at this
 point: **the framing is thin, because three of the four outputs need structure the
 minimal generator does not have, and the fourth is about a model known not to fit.**
 Whichever way the domain-model question is resolved, the outputs that make the
@@ -2038,7 +2010,7 @@ large, robust, and against the market's steadiest signature.
 
 ## Gate 3.4 — Invariant A boundary (RESOLVED: inference stays downstream)
 
-**Branch 1 selected by the maintainer on 2026-07-31.** PLAN.md reserves this gate for
+**Branch 1 selected by the maintainer on 2026-07-31.** this gate is reserved for
 the maintainer and instructs the agent to halt; the agent halted, assembled the
 evidence below, and the maintainer chose. The evidence is left exactly as it was
 gathered, before the choice, and the resolution is recorded at the end of this section
@@ -2055,7 +2027,7 @@ Checked against stochadex v0.13.1.
 1. **There is no streaming source stanza.** The complete set of `data:` sources is
    `csv`, `json_log`, `postgres` (in-engine, `pkg/api/macros_data.go`) plus `arrow`
    and `s3` (registered by the CLI). All five read a **complete** dataset into a
-   `StateTimeStorage` and return. PLAN.md's Phase 3 "exercises the streaming source
+   `StateTimeStorage` and return. Phase 3 "exercises the streaming source
    stanza" — there is not one to exercise.
 2. **There is no data-agreement or schema-negotiation layer.** Grepping the engine
    for it returns nothing; the only "agreement" hits are declarative-twin numerics
@@ -2070,7 +2042,7 @@ serves state updates to a dashboard). There is no ingress anywhere.
 
 ### The boundary was already drawn upstream
 
-PLAN.md frames Invariant A as open, with the risk that Phase 3 resolves it by fait
+The design frames Invariant A as open, with the risk that Phase 3 resolves it by fait
 accompli. That framing is out of date. stochadex's `CLAUDE.md` restates it
 deliberately for the config surface: inference-*as-forward-simulation* — a posterior
 stepped as a partition — **is in scope for the engine**, and `posterior_estimation`
@@ -2199,7 +2171,7 @@ while the dataset, the calibration loop and the decision layer stay downstream. 
 streaming ingress owns a live dataset and a collection loop, so it is downstream *under
 the existing invariant*. This branch states that conclusion rather than inventing one.
 
-**Why not branch 2.** Its real cost is not the one PLAN.md names. Inference-in-the-engine
+**Why not branch 2.** Its real cost is not the one the design names. Inference-in-the-engine
 is settled and in scope; what branch 2 actually buys is **growing-storage in the engine**,
 which breaks the analysis tier's assumption that a `StateTimeStorage` is complete before
 macros consume it. That is a deep change to a core assumption, and the windowing evidence
@@ -2234,7 +2206,7 @@ gate means that question reopens this one.
    engine. That is what makes the upstream release work resolvable rather than another
    boundary argument.
 
-Three of PLAN.md's Phase 3 spikes are affected by the premises recorded above rather
+Three of Phase 3 spikes are affected by the premises recorded above rather
 than by this decision: 3.2 has nothing to exercise (no data-agreement layer exists),
 and the streaming-source half of 3.1 is now scoped to a downstream source. Those are
 consequences of the measurements, not of the branch.
@@ -2248,7 +2220,7 @@ Both were hit while building Phase 1, reported upstream, and fixed the same day 
 This repo now pins `v0.13.1` and both workarounds have been removed.
 
 They are kept in this log rather than deleted because the first one carries a lesson
-that outlives the fix, and because PLAN.md's standing rule is that a downstream repo
+that outlives the fix, and because the standing rule is that a downstream repo
 working around a silent engine behaviour is the thing to avoid.
 
 ### 1. `window_data_history_depth` larger than the window depth silently INVERTED the likelihood
@@ -2343,7 +2315,7 @@ against itself:
 Its own guidance: "reach for `ArrowStateTimeStorage` when the output is destined
 for the columnar/analytical world; keep the pure-Go `StateTimeStorage` otherwise."
 
-That is PLAN.md's second branch — *Arrow moves strictly to the egress boundary* —
+That is the second branch — *Arrow moves strictly to the egress boundary* —
 already selected upstream, with numbers. Spike 4.1 should not re-litigate
 Invariant B. What remains is domain-side and much smaller: use the Arrow output
 function for Phase 4 egress, and measure on *this* model's state width to confirm
@@ -2360,12 +2332,12 @@ compile-checks the CLI with the tag.
 Spike 5.1's allocation question is **still open** — module existence is not an
 allocation profile, and this has not been measured. But Phase 5, if Spike 2.2
 triggers it, is a config surface plus a trained model, not an integration project.
-Also worth holding onto: Phase 5 remains conditional. PLAN.md is right that adding
+Also worth holding onto: Phase 5 remains conditional. it is right that adding
 a learned component to a model that does not need one weakens the claim.
 
 ### Gate 3.4 has moved
 
-PLAN.md frames Invariant A as an open boundary that Phase 3 walks into. The engine
+The design frames Invariant A as an open boundary that Phase 3 walks into. The engine
 has since **restated it explicitly** for the config surface (stochadex `CLAUDE.md`,
 "Invariant A restated for this surface"): inference-*as-forward-simulation* — a
 posterior stepped as a partition — is *in scope for the engine*;
@@ -2373,7 +2345,7 @@ posterior stepped as a partition — is *in scope for the engine*;
 downstream is the **dataset** (`data:`), the calibration loop, and the decision
 layer.
 
-That does not resolve Gate 3.4, and this log does not select a branch — PLAN.md
+That does not resolve Gate 3.4, and this log does not select a branch — the design
 reserves it for the maintainer. But it narrows the question a long way. Under the
 restated invariant, a streaming calibration is downstream because it owns a *live
 dataset and a collection loop*, not because a posterior is being stepped. The
@@ -2639,7 +2611,7 @@ producing Arrow overall is ~2.2–2.7× faster with far fewer allocations and ro
 memory versus appending to StateTimeStorage and converting afterward. The resolution of the
 "append is slightly slower" tension is precisely that Arrow is a **separate opt-in module at
 the egress boundary**, not a change to the core hot loop — which is the "Arrow moves strictly
-to the egress boundary; the state spine stays dense row-oriented" branch PLAN.md named. The
+to the egress boundary; the state spine stays dense row-oriented" branch the design named. The
 core's default path is unchanged, so nothing this project runs regresses.
 
 **For context, the cost Arrow would remove.** The default `StateTimeStorage.AppendByIndex`

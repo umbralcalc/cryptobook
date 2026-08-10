@@ -1,4 +1,4 @@
-// Package queue holds PLAN.md's FOURTH stability output — queue-position distribution
+// Package queue holds the FOURTH stability output — queue-position distribution
 // under varying tick regimes — which two earlier audits marked NOT ANSWERABLE.
 //
 // # The correction this rests on
@@ -306,7 +306,7 @@ func ObservedBehaviour() []claims.Claim {
 				"coarsens across 0.5, 1.0 and 2.0. A coarser tick makes each level span " +
 				"more price, so it collects proportionally more arrivals while the decay " +
 				"across levels steepens by the same factor — liquidity concentrates into " +
-				"fewer, longer queues. This is the substantive half of PLAN.md's fourth " +
+				"fewer, longer queues. This is the substantive half of the fourth " +
 				"output and its answer was not known when it was predicted.",
 			Gate:  "4.2",
 			Phase: phase,

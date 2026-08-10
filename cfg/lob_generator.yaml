@@ -15,7 +15,7 @@
 #   cancellations    Poisson(cancel_rate · q_i · dt) at level i — proportional to the
 #                    resting volume there, so a deeper queue cancels more. THIS is the
 #                    coupling that makes cancel_rate identifiable and that carries the
-#                    stability question (PLAN.md Spike 1.1: the recovery set must
+#                    stability question (the design Spike 1.1: the recovery set must
 #                    include an arrival rate and a cancellation rate).
 #   market orders    Poisson(market_rate · dt) arrivals, split 50/50 between sides,
 #                    consuming resting volume at the touch.

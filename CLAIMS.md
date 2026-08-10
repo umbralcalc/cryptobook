@@ -574,7 +574,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 
 ### `a_coarser_tick_lengthens_the_queue_at_each_level`
 
-> Mean occupied slots per level rises monotonically as the tick coarsens across 0.5, 1.0 and 2.0. A coarser tick makes each level span more price, so it collects proportionally more arrivals while the decay across levels steepens by the same factor — liquidity concentrates into fewer, longer queues. This is the substantive half of PLAN.md's fourth output and its answer was not known when it was predicted.
+> Mean occupied slots per level rises monotonically as the tick coarsens across 0.5, 1.0 and 2.0. A coarser tick makes each level span more price, so it collects proportionally more arrivals while the decay across levels steepens by the same factor — liquidity concentrates into fewer, longer queues. This is the substantive half of the fourth output and its answer was not known when it was predicted.
 
 - **Discharges gate:** 4.2
 - **Data:** synthetic — a model counterfactual only. Queue position is unobservable in a Binance diff feed at any bucket size, so no limb of this is or can be compared to market data
@@ -664,7 +664,7 @@ Every claim below is a *bound* object: a stable ID, the test subtest that enforc
 
 ### `spread_widens_as_marketable_flow_increases`
 
-> Raising the rate of marketable orders empties the inner levels faster than arrivals replace them, and the spread widens. Together with the arrival response this is PLAN.md's spread-response output, which the minimal generator could not answer because it had no prices at all.
+> Raising the rate of marketable orders empties the inner levels faster than arrivals replace them, and the spread widens. Together with the arrival response this is the spread-response output, which the minimal generator could not answer because it had no prices at all.
 
 - **Discharges gate:** 4.2
 - **Data:** synthetic — the priced generator, NOT calibrated against any market

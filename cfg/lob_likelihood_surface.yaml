@@ -5,7 +5,7 @@
 # parameter there are two possible causes, and they call for opposite responses:
 # the parameter is not identifiable from the observables (fix the model or the
 # observables), or it is identifiable and the sampler cannot find it (fix the
-# inference). PLAN.md's Spike 1.2 branches split exactly there — "recovery fails
+# inference). Spike 1.2 branches split exactly there — "recovery fails
 # generally → stop, the parameterisation is wrong" versus "ESS collapses →
 # methodology decision" — so the two have to be told apart with evidence rather
 # than argued about.

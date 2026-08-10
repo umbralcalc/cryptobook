@@ -7,7 +7,7 @@
 //  1. All three parameters ARE identified — the log-likelihood surface peaks at the
 //     true value of each, including the cancellation rate, which is identifiable
 //     only through its coupling to queue depth. So the parameterisation is sound
-//     and PLAN.md's "recovery fails generally → the parameterisation is wrong"
+//     and the "recovery fails generally → the parameterisation is wrong"
 //     branch is ruled out by evidence rather than by argument.
 //
 //  2. Importance sampling nevertheless has an effective sample size of ~1. The
@@ -24,7 +24,7 @@
 // That last point is why this matters beyond Phase 1. Phase 2's deliverable is
 // calibrated parameters WITH uncertainty, and a posterior whose ESS is 1 has no
 // usable uncertainty at all — its variance is the spread of one point. This is
-// PLAN.md's documented switch signal, and per the plan it is escalated rather than
+// the documented switch signal, and per the plan it is escalated rather than
 // worked around. See DECISIONS.md.
 package recovery
 
@@ -45,7 +45,7 @@ const (
 	dataset = "synthetic — the model's own generated order flow, no market data"
 
 	// tolerance is the PRE-REGISTERED recovery tolerance: 25% relative error on
-	// each parameter. Fixed before any tuning run, per PLAN.md ("define the
+	// each parameter. Fixed before any tuning run, ("define the
 	// tolerance before running; do not tune it to the result"). It has not moved
 	// since — the weakly-identified parameter missed it and stayed missed rather
 	// than the bound being widened to admit it.
@@ -212,7 +212,7 @@ type setting struct {
 	levelDepth float64
 }
 
-// settings are the three true-parameter settings PLAN.md's third success criterion
+// settings are the three true-parameter settings the third success criterion
 // requires, including one near a range boundary. In every case the prior is placed
 // well off truth — and in the boundary case ABOVE it, so the estimator has to come
 // down rather than up, which is the harder direction when a rate cannot go negative.

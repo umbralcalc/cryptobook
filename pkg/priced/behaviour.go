@@ -3,7 +3,7 @@
 //
 // # What it unlocks
 //
-// PLAN.md's Spike 4.2 lists four stability outputs. Against the minimal generator
+// Spike 4.2 lists four stability outputs. Against the minimal generator
 // only one was answerable (see pkg/stability). Adding prices, an emergent spread
 // and marketable orders that walk the book takes that to three:
 //
@@ -223,7 +223,7 @@ func observedBehaviour() ([]claims.Claim, error) {
 			ID: "spread_widens_as_marketable_flow_increases",
 			Statement: "Raising the rate of marketable orders empties the inner levels " +
 				"faster than arrivals replace them, and the spread widens. Together with " +
-				"the arrival response this is PLAN.md's spread-response output, which the " +
+				"the arrival response this is the spread-response output, which the " +
 				"minimal generator could not answer because it had no prices at all.",
 			Gate:  "4.2",
 			Phase: phase,

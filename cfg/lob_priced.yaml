@@ -16,7 +16,7 @@
 # 2. AN EMERGENT SPREAD. The touch is wherever the innermost occupied level happens
 #    to be, so the spread is an OUTPUT rather than a parameter: sweep the inner
 #    levels away and it widens, let arrivals refill them and it narrows. This is
-#    what makes PLAN.md's spread-response output answerable at all.
+#    what makes the spread-response output answerable at all.
 #
 # 3. MARKETABLE ORDERS THAT WALK THE BOOK. A large order consumes across levels
 #    until it is filled, instead of being clipped at the touch. The whole content of

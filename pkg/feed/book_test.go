@@ -142,7 +142,7 @@ func TestFirstEventAgainstSnapshot(t *testing.T) {
 	})
 
 	t.Run("resetting after a gap resynchronises cleanly", func(t *testing.T) {
-		// The preferred branch of PLAN.md's Spike 3.1: resnapshot and resume.
+		// The preferred branch of Spike 3.1: resnapshot and resume.
 		book := snapshot(t)
 		if err := apply(t, book, 105, nil, nil); !errors.Is(err, ErrSequenceGap) {
 			t.Fatalf("setup: expected a gap, got %v", err)

@@ -1,6 +1,6 @@
 # Phase 1 — synthetic parameter recovery, as a single config.
 #
-# PLAN.md Spike 1.2: verify the inference stack can recover known parameters from
+# the design Spike 1.2: verify the inference stack can recover known parameters from
 # its own generative process. If it cannot, no result against real data means
 # anything, so this is the anchor for every later phase.
 #

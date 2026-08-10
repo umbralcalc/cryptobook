@@ -1,4 +1,4 @@
-// Package stability holds PLAN.md's Spike 4.2 — the counterfactual output suite —
+// Package stability holds Spike 4.2 — the counterfactual output suite —
 // and, more importantly, the audit of which of its four outputs this model can
 // actually support.
 //
@@ -51,7 +51,7 @@
 // # Framing
 //
 // Both are counterfactuals about market state — how much liquidity, and how long it
-// takes to come back — with no price and no direction in them. PLAN.md's framing
+// takes to come back — with no price and no direction in them. the framing
 // discipline is trivially satisfied here, for the unflattering reason that the
 // model has no price process to violate it with.
 package stability

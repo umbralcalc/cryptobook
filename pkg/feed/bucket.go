@@ -6,7 +6,7 @@ import "math"
 // streams into the same row shape cfg/lob_generator.yaml produces, so the existing
 // calibration config consumes real market data with no change.
 //
-// It is the crypto form of PLAN.md's Spike 2.1 ("message format to state spine"),
+// It is the crypto form of Spike 2.1 ("message format to state spine"),
 // and the mapping decisions live here rather than in a document because each one is
 // a modelling choice the fitted numbers depend on.
 //
@@ -257,7 +257,7 @@ func (a *Aggregator) ObserveTrade(price, size float64) {
 // MarkSuspect flags this bucket's data as untrustworthy — a sequence gap, a
 // resynchronisation, a stall, or a book with no two-sided touch.
 //
-// PLAN.md requires the marking to propagate INTO the calibration rather than being
+// the marking must to propagate INTO the calibration rather than being
 // logged and forgotten. CloseBucket writes it as a column so a calibration can
 // exclude suspect intervals instead of silently trusting them.
 func (a *Aggregator) MarkSuspect() { a.suspect = true }

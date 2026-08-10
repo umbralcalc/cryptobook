@@ -45,7 +45,7 @@ looking for a layer that was never designed. Neither should become an issue.
 **Entry 1 was a real gap, but I overstated what it blocked — corrected 2026-08-08.** The
 gap itself stands exactly as verified: there is no fold across `each` lanes, confirmed three
 independent ways, and `scan` closes it. What was wrong is the CONSEQUENCE this file claimed
-for it: that "order identity was unsayable, so PLAN.md's queue-position stability output
+for it: that "order identity was unsayable, so the queue-position stability output
 could not be answered".
 
 `cfg/lob_queue.yaml` now answers that output and **uses no `scan` anywhere**. Order identity
@@ -83,7 +83,7 @@ Every `data:` source builds a **complete** `StateTimeStorage` and returns: `csv`
 anywhere consumes a growing one. The websocket in `pkg/api/socket.go` is output
 only — there is no ingress.
 
-PLAN.md's Phase 3 assumed a "streaming source stanza" exists. It does not.
+Phase 3 assumed a "streaming source stanza" exists. It does not.
 
 **Not necessarily worth closing.** `RegisterDataSource`'s contract is
 `build(fields) (*StateTimeStorage, error)`, so a downstream source may block on a
@@ -107,7 +107,7 @@ a recorded non-gap, so a future reader does not close it thinking it was an over
 
 **Severity: low — the plan assumed one; the engine's approach is simpler.**
 
-PLAN.md's Spike 3.2 set out to "exercise the column-mapping validation and schema
+Spike 3.2 set out to "exercise the column-mapping validation and schema
 negotiation path". Grepping the engine finds no such layer. The Postgres table shape
 is fixed by the engine at `(partition_name, time, state)` and is written by
 `CREATE TABLE IF NOT EXISTS` (`pkg/analysis/postgres.go`), the same three columns
@@ -198,7 +198,7 @@ scan(5, i, acc, concat(fill(5, 0), k),
 
 `free = [0 1 0 1 1]` with `k = 3` gives `[0 1 0 1 1 0]` — slots 1, 3 and 4 assigned, no
 arrivals left over. **Order identity is therefore expressible as pure config**, and with it
-PLAN.md's queue-position stability output, which Spike 4.2 recorded as *not answerable*.
+the queue-position stability output, which Spike 4.2 recorded as *not answerable*.
 
 Note the spelling needs the entry-2 fix too: the last lane's `slice(acc, 5, 0)` is
 zero-width. The two fixes compose, and neither alone would have been enough.
@@ -229,3 +229,18 @@ Reported from this project, fixed in **v0.13.1**. `ParameterisedModel.Init`
 allocated the two wiring maps but not `Params`, so the natural shape for a
 likelihood taking its mean from upstream died with a bare `assignment to entry in
 nil map`. Both model types now allocate it.
+
+## Reusable iterations surveyed — not gaps, recorded so the driver's hand-rolling is a choice
+
+The engine ships point-process and continuous iterations the models here approximate by hand:
+`cox_process` (doubly-stochastic Poisson — a Poisson count with a stochastic intensity, which is
+exactly what the flows are), `hawkes_process` (self-exciting intensity — the temporal clustering
+the AR(1) driver produces), `ornstein_uhlenbeck`, `gamma`, and `poisson_process`.
+
+None is a drop-in for the hand-rolled `activity` partition, and that is a deliberate choice, not a
+gap: the driver is a discrete gamma-AR(1) (`act = ρ·prev + (1−ρ)·gamma(…)`) whose heavy *positive*
+tail is the dispersion this project measures — `ornstein_uhlenbeck` is Gaussian and can go
+negative, so swapping it would change the dynamics under study. The LOB partitions (flows, book,
+observables) are inherently bespoke. Recorded because these iterations ARE the formal processes the
+model stands in for, and are the natural building blocks for the state-space likelihood the Phase 3
+offline-calibration boundary needs (see DECISIONS.md) — a future rebuild should reach for them.

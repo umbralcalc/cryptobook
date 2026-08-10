@@ -1,7 +1,7 @@
 // Package claims is this repo's claim↔test↔result bond: the Phase 0 trust
 // foundation that every later phase hangs off.
 //
-// The problem it solves is the one PLAN.md opens with — "a calibration result
+// The problem it solves is the one the project opens with — "a calibration result
 // that can't be re-run on every engine change is a screenshot, not a claim". So a
 // behavioural claim here is not prose in a README. It is a value with a stable ID
 // that (a) names the test subtest enforcing it, (b) carries the numbers that test
@@ -12,7 +12,7 @@
 //
 // It builds on the engine's own claim type (models/cardgen.Claim) so the bond has
 // the same shape as the stochadex domain-models catalogue — Verify is the engine's,
-// unchanged. What this package adds are the fields PLAN.md's standing constraints
+// unchanged. What this package adds are the fields the standing constraints
 // need and cardgen has no reason to carry:
 //
 //   - Gate — which spike or decision gate the claim discharges, so a resolved gate
@@ -66,7 +66,7 @@ type Claim struct {
 	ID string
 	// Statement is the claim in plain language, as a sentence a reader can disagree
 	// with. Must be a counterfactual about market state, never a directional price
-	// claim (PLAN.md framing discipline) — this package cannot check that, but the
+	// claim (the design framing discipline) — this package cannot check that, but the
 	// review of a new claim should.
 	Statement string
 	// Gate is the spike or decision gate this claim discharges, e.g. "1.2".

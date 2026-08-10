@@ -12,7 +12,7 @@ import (
 // Everything that decides whether the data is trustworthy lives in book.go and
 // bucket.go, which know nothing about Binance and need no network to test.
 //
-// The split is deliberate. PLAN.md's Spike 3.3 warns that a live feed makes -race
+// The split is deliberate. Spike 3.3 warns that a live feed makes -race
 // failures probabilistic rather than reproducible, so "a clean run proves less than
 // it appears to". Keeping the sequence contract and the aggregation in pure,
 // network-free code means the risky logic is tested deterministically and this file

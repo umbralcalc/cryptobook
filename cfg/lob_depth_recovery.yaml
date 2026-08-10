@@ -1,5 +1,5 @@
 # Depth recovery following a liquidity event — the one stability output of
-# PLAN.md's Spike 4.2 this model can actually support.
+# Spike 4.2 this model can actually support.
 #
 # Identical to cfg/lob_generator.yaml except for the shock: at `shock_step` the
 # resting ladder is cut to `survive_fraction` of itself, and the run continues.
@@ -26,7 +26,7 @@
 # ── FRAMING ───────────────────────────────────────────────────────────────────
 #
 # This is a counterfactual about market state — how long liquidity takes to come
-# back — with no price and no direction anywhere in it. PLAN.md's framing
+# back — with no price and no direction anywhere in it. the framing
 # discipline is easy to hold here because the model has no price process to
 # violate it with.
 main:
