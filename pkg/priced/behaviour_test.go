@@ -65,8 +65,9 @@ func TestTheBaseModelIsUnshocked(t *testing.T) {
 // TestSweepAbsorbsInFrontFirst pins the book-walking arithmetic directly, rather
 // than only through the survival claim.
 //
-// The sweep is a prefix-sum-plus-clamp reformulation, chosen because the DSL has no
-// scan (STOCHADEX_GAPS.md entry 1). It is the least obvious part of the model, and
+// The sweep is a prefix-sum-plus-clamp reformulation, chosen because a lane in `each`
+// cannot read an earlier lane's value (the "PREFIX SUM" idiom documented in
+// cfg/lob_priced.yaml). It is the least obvious part of the model, and
 // an error in it would show up as a plausible-looking survival number rather than
 // as a failure — so it gets checked against a case whose answer is arithmetic.
 func TestSweepAbsorbsInFrontFirst(t *testing.T) {

@@ -31,7 +31,6 @@ support.
 | [CLAIMS.md](CLAIMS.md) | Every claim re-derivable from this repo alone, bound to the test that enforces it. **Generated — do not edit.** |
 | [DECISIONS.md](DECISIONS.md) | Decisions and results, with the evidence that forced them; market-comparison numbers that need non-redistributable data live here. |
 | [PREREGISTRATION.md](PREREGISTRATION.md) | Thresholds fixed *before* the runs that test them. |
-| [STOCHADEX_GAPS.md](STOCHADEX_GAPS.md) | Verified engine capability gaps, recorded as they were hit. |
 | [cfg/](cfg/) | The models and inference. Pure config — no Go. |
 
 The best model is [`cfg/lob_counts.yaml`](cfg/lob_counts.yaml);

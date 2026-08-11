@@ -264,9 +264,9 @@ func (e EnsembleStat) StdError(members int) float64 {
 // api.Run honours it. But api.Run PRINTS the members and returns nothing, and the
 // storage-returning core (api.ensembleRuns) is unexported, so there is no exported path
 // from a config's `run:` block to the member storages a claim statistic needs. Seeds
-// therefore live here (DefaultSeeds) rather than in YAML. See STOCHADEX_GAPS.md entry 5; if
-// that entry is closed upstream, this function collapses to a thin call and seeds move into
-// the config.
+// therefore live here (DefaultSeeds) rather than in YAML. If the engine ever exports a
+// storage-returning ensemble entry point that honours the `run:` block, this function
+// collapses to a thin call and seeds move into the config.
 func RunEnsemble(
 	name string,
 	subs Subs,

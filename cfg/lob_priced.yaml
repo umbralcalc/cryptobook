@@ -28,12 +28,12 @@
 #
 # ── WHAT IS STILL MISSING, AND WHY ────────────────────────────────────────────
 #
-# ORDER IDENTITY. There is no FIFO queue and no per-order record, so
-# queue-position remains unanswerable. That is not a scoping choice — it is a
-# capability gap: assigning k simultaneous arrivals to the first k free slots is an
-# allocation problem needing a scan across lanes, which the expressions DSL cannot
-# express. See STOCHADEX_GAPS.md entry 1. The alternative is bespoke Go, which would
-# break the pure-config property every model here holds.
+# ORDER IDENTITY. This model has no FIFO queue and no per-order record, so
+# queue-position is not one of its outputs. That is a scoping choice for this model,
+# not a capability gap: order identity IS expressible in pure config — cfg/lob_queue.yaml
+# answers it via compaction (an exclusive prefix sum), and the engine's `scan` fold makes
+# the allocation framing expressible too. This model deliberately stays on the priced
+# ladder and leaves the FIFO queue to that variant.
 #
 # ── THE TWO DSL IDIOMS THIS MODEL RESTS ON ────────────────────────────────────
 #
