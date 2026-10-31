@@ -54,10 +54,20 @@ func ConfigDir() string {
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "cfg")
 }
 
-// Run loads the named config from cfg/, applies subs, and runs it — the macros:
-// tier when the config has one, otherwise the main: simulation — returning the
-// storage it produced.
+// Run loads the named config from cfg/, applies subs, and runs it — main:
+// partitions, macros: or both — returning the storage it produced.
 func Run(name string, subs Subs) (*simulator.StateTimeStorage, error) {
+	result, err := runSubstituted(name, subs, "")
+	if err != nil {
+		return nil, err
+	}
+	return result.Storage, nil
+}
+
+// runSubstituted loads the named config from cfg/, applies subs, appends extra
+// YAML and runs it through the engine's own entry point. Only where output goes
+// differs from the CLI: the run comes back as storage rather than being printed.
+func runSubstituted(name string, subs Subs, extra string) (*api.RunResult, error) {
 	source, err := os.ReadFile(filepath.Join(ConfigDir(), name))
 	if err != nil {
 		return nil, fmt.Errorf("cfgrun: reading %s: %w", name, err)
@@ -73,18 +83,23 @@ func Run(name string, subs Subs) (*simulator.StateTimeStorage, error) {
 		return nil, fmt.Errorf("cfgrun: temp file: %w", err)
 	}
 	defer os.Remove(temp.Name())
-	if _, err := temp.WriteString(substituted); err != nil {
+	if _, err := temp.WriteString(substituted + extra); err != nil {
 		temp.Close()
 		return nil, fmt.Errorf("cfgrun: writing temp config: %w", err)
 	}
 	if err := temp.Close(); err != nil {
 		return nil, fmt.Errorf("cfgrun: closing temp config: %w", err)
 	}
-	config := api.LoadApiRunConfigFromYaml(temp.Name())
-	if len(config.Macros) > 0 {
-		return api.RunMacros(config)
+	config, err := api.LoadConfig(temp.Name())
+	if err != nil {
+		return nil, fmt.Errorf("cfgrun: %s: %w", name, err)
 	}
-	return runMain(config)
+	// RunToStorage pre-flights the wiring for deadlocks before it runs.
+	result, err := api.RunToStorage(config)
+	if err != nil {
+		return nil, fmt.Errorf("cfgrun: %s: %w", name, err)
+	}
+	return result, nil
 }
 
 // apply performs the substitutions, erroring on any whose target is absent.
@@ -110,24 +125,6 @@ func apply(source string, subs Subs) (string, error) {
 				"measured the unmodified config: %q", missing)
 	}
 	return source, nil
-}
-
-// runMain runs a main:-tier config, capturing output into storage rather than
-// printing it. Only the output function is replaced — every partition, param and
-// wiring decision still comes from the config.
-func runMain(config *api.ApiRunConfig) (*simulator.StateTimeStorage, error) {
-	generator := config.GetConfigGenerator()
-	if err := api.CheckForDeadlock(generator); err != nil {
-		return nil, err
-	}
-	storage := simulator.NewStateTimeStorage()
-	simulation := generator.GetSimulation()
-	simulation.OutputFunction = &simulator.StateTimeStorageOutputFunction{
-		Store: storage,
-	}
-	generator.SetSimulation(simulation)
-	simulator.NewPartitionCoordinator(generator.GenerateConfigs()).Run()
-	return storage, nil
 }
 
 // MeanColumn returns the mean of one column of a partition's recorded rows,
@@ -245,79 +242,41 @@ func (e EnsembleStat) StdError(members int) float64 {
 // RunEnsemble runs one member per seed and returns their storages, index-aligned to
 // seeds.
 //
-// # Why the engine's ensembler rather than calling Run in a loop
+// # Why the engine's ensemble mode rather than calling Run in a loop
 //
-// simulator.RunSeededEnsemble varies the GLOBAL seed through the ConfigGenerator, which
-// reseeds every partition coherently. Substituting a partition's `seed:` line in the YAML
-// — which is what an inline loop would do — varies one partition and leaves the others
-// pinned, so members would share randomness they should not. The engine also rebuilds a
-// fresh ConfigGenerator per member, which is load-bearing: GenerateConfigs hands back the
-// same Iteration pointers it was given, so reusing one generator across concurrent
-// members would share mutable iteration state between them.
+// The engine's `run: {mode: ensemble}` varies the GLOBAL seed through the
+// ConfigGenerator, which reseeds every partition coherently. Substituting a partition's
+// `seed:` line in the YAML — which is what an inline loop would do — varies one partition
+// and leaves the others pinned, so members would share randomness they should not. The
+// engine also rebuilds every member from scratch, so concurrent members share no mutable
+// iteration state.
 //
 // Concurrency is left at the engine's default (GOMAXPROCS). Members are independent, so
 // this is the one place in this repo where parallelism is free of ordering concerns.
 //
-// # Why seeds are a Go argument and not config
+// # Why seeds are a Go argument
 //
-// They should be config: the schema has a `run:` block carrying seeds and concurrency, and
-// api.Run honours it. But api.Run PRINTS the members and returns nothing, and the
-// storage-returning core (api.ensembleRuns) is unexported, so there is no exported path
-// from a config's `run:` block to the member storages a claim statistic needs. Seeds
-// therefore live here (DefaultSeeds) rather than in YAML. If the engine ever exports a
-// storage-returning ensemble entry point that honours the `run:` block, this function
-// collapses to a thin call and seeds move into the config.
+// Every claim is scored on the same ensemble (DefaultSeeds), so the seeds are this
+// project's scoring convention rather than part of any one model. RunEnsemble states them
+// as the config's `run:` block, so the run is exactly the CLI's ensemble of that config.
+// A config that already has a `run:` block is an error.
 func RunEnsemble(
 	name string,
 	subs Subs,
 	seeds []uint64,
 ) ([]*simulator.StateTimeStorage, error) {
-	source, err := os.ReadFile(filepath.Join(ConfigDir(), name))
+	listed := make([]string, len(seeds))
+	for i, seed := range seeds {
+		listed[i] = fmt.Sprint(seed)
+	}
+	result, err := runSubstituted(name, subs,
+		"\nrun: {mode: ensemble, seeds: ["+strings.Join(listed, ", ")+"]}\n")
 	if err != nil {
-		return nil, fmt.Errorf("cfgrun: reading %s: %w", name, err)
-	}
-	substituted, err := apply(string(source), subs)
-	if err != nil {
-		return nil, fmt.Errorf("cfgrun: %s: %w", name, err)
-	}
-	// Members are rebuilt by RE-LOADING this file, so it has to outlive every member.
-	temp, err := os.CreateTemp("", "*-"+name)
-	if err != nil {
-		return nil, fmt.Errorf("cfgrun: temp file: %w", err)
-	}
-	defer os.Remove(temp.Name())
-	if _, err := temp.WriteString(substituted); err != nil {
-		temp.Close()
-		return nil, fmt.Errorf("cfgrun: writing temp config: %w", err)
-	}
-	if err := temp.Close(); err != nil {
-		return nil, fmt.Errorf("cfgrun: closing temp config: %w", err)
-	}
-
-	config := api.LoadApiRunConfigFromYaml(temp.Name())
-	if len(config.Macros) > 0 {
-		return nil, fmt.Errorf(
-			"cfgrun: %s has a macros: tier; the engine's ensembler runs main: "+
-				"partitions only", name)
-	}
-	if err := api.CheckForDeadlock(config.GetConfigGenerator()); err != nil {
 		return nil, err
 	}
-	build := func() *simulator.ConfigGenerator {
-		generator := api.LoadApiRunConfigFromYaml(temp.Name()).GetConfigGenerator()
-		simulation := generator.GetSimulation()
-		simulation.OutputFunction = &simulator.NilOutputFunction{}
-		generator.SetSimulation(simulation)
-		return generator
-	}
-	runs := simulator.RunSeededEnsemble(build, seeds, 0)
-	out := make([]*simulator.StateTimeStorage, len(runs))
-	for i, run := range runs {
-		if run.Storage == nil {
-			return nil, fmt.Errorf("cfgrun: ensemble member %d (seed %d) produced no storage",
-				i, run.Seed)
-		}
-		out[i] = run.Storage
+	out := make([]*simulator.StateTimeStorage, len(result.Members))
+	for i, member := range result.Members {
+		out[i] = member.Storage
 	}
 	return out, nil
 }

@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/umbralcalc/stochadex v0.14.0
+	github.com/umbralcalc/stochadex v0.25.0
 )
 
 require (
@@ -19,4 +19,5 @@ require (
 	gonum.org/v1/netlib v0.0.0-20230729102104-8b8060e7531f // indirect
 	google.golang.org/protobuf v1.36.9 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
