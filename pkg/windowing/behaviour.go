@@ -4,7 +4,7 @@
 // The gate asks whether a continuously-running streaming calibration forces
 // inference into the engine. The architecture that says no is windowed re-runs: a
 // collector writes a segment, the engine reads a FINISHED window through the
-// ordinary `data:` tier, calibration runs, repeat. cfg/lob_calibrate_from_log.yaml
+// ordinary input, calibration runs, repeat. cfg/lob_calibrate_from_log.yaml
 // is that shape, and it needs no engine change at all.
 //
 // The obvious objection is throughput — can repeated re-runs keep up with arriving

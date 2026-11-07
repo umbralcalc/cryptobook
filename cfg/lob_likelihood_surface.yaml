@@ -17,43 +17,45 @@
 #
 # pkg/recovery evaluates it at the truth and at 0.6x / 1.67x each parameter, and
 # reports the peak's advantage in nats.
-data:
-  steps: 500
-  timestep: 1.0
-  partitions:
-  - name: lob_flow
-    params:
-      limit_rate: [1.2]
-      cancel_rate: [0.15]
-      market_rate: [0.8]
-      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      half: [0.5]
-    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
-    state_history_depth: 1
-    seed: 20260728
-  expressions:
-  - partition: lob_flow
-    fields:
-    - {name: q, width: 6}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    bindings:
-    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
-    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
-    - {name: mkt_ask, expr: "mkt - mkt_bid"}
-    - {name: resting, expr: "q - cancels + arrivals"}
-    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
-    outputs:
-    - "resting - takes"
-    - "sum(arrivals)"
-    - "sum(cancels)"
-    - "mkt"
-    - "sum(q)"
+inputs:
+  data:
+    simulation:
+      steps: 500
+      timestep: 1.0
+      partitions:
+      - name: lob_flow
+        params:
+          limit_rate: [1.2]
+          cancel_rate: [0.15]
+          market_rate: [0.8]
+          touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+          half: [0.5]
+        init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+        state_history_depth: 1
+        seed: 20260728
+      expressions:
+      - partition: lob_flow
+        fields:
+        - {name: q, width: 6}
+        - {name: n_limit}
+        - {name: n_cancel}
+        - {name: n_market}
+        - {name: depth_start}
+        bindings:
+        - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+        - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+        - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+        - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+        - {name: mkt_ask, expr: "mkt - mkt_bid"}
+        - {name: resting, expr: "q - cancels + arrivals"}
+        - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+        outputs:
+        - "resting - takes"
+        - "sum(arrivals)"
+        - "sum(cancels)"
+        - "mkt"
+        - "sum(q)"
 macros:
 - type: likelihood_comparison
   name: lob_likelihood

@@ -1,7 +1,7 @@
 # Calibrate from a RECORDED segment on disk, rather than from a sub-simulation.
 #
-# Same SMC inference as cfg/lob_recovery_smc.yaml. The only change is the `data:`
-# tier: instead of generating its own flow, it reads a recorded segment through the
+# Same SMC inference as cfg/lob_recovery_smc.yaml. The only change is its `data`
+# input: instead of generating its own flow, it reads a recorded segment through the
 # engine's `json_log` source. Everything downstream of that is identical.
 #
 # ── WHY THIS EXISTS ───────────────────────────────────────────────────────────
@@ -12,7 +12,7 @@
 # engine reads a FINISHED window of it, calibration runs, repeat.
 #
 # What matters is what is absent. There is no engine change here, no new source
-# type, and no growing storage — the `data:` tier is used exactly as it ships.
+# type, and no growing storage — an input is used exactly as it ships.
 # `RegisterDataSource`'s contract is `build(fields) -> (*StateTimeStorage, error)`,
 # so a downstream-contributed source may block on a live feed and return once a
 # window is full, and this config would not know the difference. Swapping
@@ -20,7 +20,7 @@
 # windowing is the query) changes nothing else.
 #
 # The engine therefore never sees a stream. It sees a finished dataset, which is
-# what `data:` has always been. Whether that is the right boundary is the
+# what an input has always been. Whether that is the right boundary is the
 # maintainer's call; this config establishes only that it is an AVAILABLE one, at
 # zero cost to the engine.
 #
@@ -32,9 +32,10 @@
 # The path below is a placeholder. pkg/streaming replaces it per window, and
 # cfgrun errors rather than silently proceeding if the substitution target is
 # missing — so a measurement can never accidentally read a stale segment.
-data:
-  source:
-    json_log: {path: RECORDED_SEGMENT_PATH}
+inputs:
+  data:
+    source:
+      json_log: {path: RECORDED_SEGMENT_PATH}
 macros:
 - type: smc_inference
   proposal_name: smc_proposals
