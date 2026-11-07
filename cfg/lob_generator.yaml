@@ -95,8 +95,8 @@ main:
     - "mkt"
     - "sum(q)"                 # q is still the START-of-step ladder here
   simulation:
-    output_condition: {type: every_step}
-    output_function: {type: stdout}
     termination_condition: {type: number_of_steps, max_steps: 200}
     timestep_function: {type: constant, stepsize: 1.0}
     init_time_value: 0.0
+outputs:
+- {name: output, condition: {type: every_step}, function: {type: stdout}}

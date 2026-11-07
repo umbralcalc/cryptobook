@@ -51,22 +51,23 @@ func TestWindowingTruthMatchesTheConfig(t *testing.T) {
 // Gate 3.4 rather than a repeat of pkg/recovery.
 //
 // The whole argument is that the engine reads a FINISHED dataset through the
-// ordinary data: tier and never sees a stream. If this config grew its own
+// ordinary input and never sees a stream. If this config grew its own
 // generating sub-simulation, it would stop demonstrating the recorded-segment path
 // and the throughput and window-length numbers would describe something else.
 func TestCalibrationConfigReadsARecordedSegment(t *testing.T) {
 	source := readConfig(t, calibrationConfig)
 	if !strings.Contains(source, "source:") ||
 		!strings.Contains(source, "json_log: {path:") {
-		t.Error("the calibration config must read its data through a data: source")
+		t.Error("the calibration config must read its data through an input's source")
 	}
-	// Matched as whole lines at the data: tier's indentation, not as substrings: a
-	// bare Contains for "steps:" also fires on the model's burn_in_steps, which
-	// would fail this test for a config that is entirely correct.
-	for _, forbidden := range []string{"expressions:", "partitions:", "steps:"} {
-		if hasTopLevelDataKey(source, forbidden) {
+	// Matched as whole lines at the input's indentation, not as substrings: a bare
+	// Contains for "steps:" also fires on the model's burn_in_steps, which would
+	// fail this test for a config that is entirely correct. A generating input
+	// states its run under simulation:.
+	for _, forbidden := range []string{"simulation:", "expressions:", "partitions:", "steps:"} {
+		if hasInputKey(source, forbidden) {
 			t.Errorf(
-				"the calibration config declares %q in its data: tier — it must read a "+
+				"the calibration config declares %q in its data input — it must read a "+
 					"recorded segment, not generate its own flow, or it stops being "+
 					"evidence that the engine only ever sees a finished dataset", forbidden)
 		}
@@ -97,12 +98,21 @@ func TestCalibrationMatchesTheSmcConfig(t *testing.T) {
 	}
 }
 
-// hasTopLevelDataKey reports whether the config declares the given key at the
-// data: tier's own indentation (two spaces), which is where a generating
-// sub-simulation would be stated.
-func hasTopLevelDataKey(source, key string) bool {
+// hasInputKey reports whether the config's data input declares the given key at
+// its own indentation (four spaces, under inputs: and data:), which is where a
+// generating sub-simulation would be stated. Lines outside that block, such as
+// a macro's model, are not read.
+func hasInputKey(source, key string) bool {
+	inInputs, inData := false, false
 	for _, line := range strings.Split(source, "\n") {
-		if strings.HasPrefix(line, "  "+key) {
+		switch {
+		case strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#"):
+			continue
+		case !strings.HasPrefix(line, " "):
+			inInputs, inData = strings.HasPrefix(line, "inputs:"), false
+		case inInputs && !strings.HasPrefix(line, "    "):
+			inData = strings.HasPrefix(line, "  data:")
+		case inData && strings.HasPrefix(line, "    "+key):
 			return true
 		}
 	}

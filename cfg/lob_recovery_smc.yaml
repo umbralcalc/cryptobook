@@ -38,46 +38,48 @@
 # The priors are wide and the truth is NOT centred in any of them (1.2 in
 # [0.1, 3.0], 0.15 in [0.01, 0.5], 0.8 in [0.05, 2.5]). A prior centred on the
 # answer would make this a rigged comparison.
-data:
-  steps: 400
-  timestep: 1.0
-  partitions:
-  - name: lob_flow
-    params:
-      # Identical truth to cfg/lob_recovery.yaml — pinned by
-      # TestSmcTruthMatchesTheOtherConfig so the two cannot drift apart and stop
-      # being comparable.
-      limit_rate: [1.2]
-      cancel_rate: [0.15]
-      market_rate: [0.8]
-      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      half: [0.5]
-    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
-    state_history_depth: 1
-    seed: 20260728
-  expressions:
-  - partition: lob_flow
-    fields:
-    - {name: q, width: 6}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    bindings:
-    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
-    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
-    - {name: mkt_ask, expr: "mkt - mkt_bid"}
-    - {name: resting, expr: "q - cancels + arrivals"}
-    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
-    outputs:
-    - "resting - takes"
-    - "sum(arrivals)"
-    - "sum(cancels)"
-    - "mkt"
-    - "sum(q)"
+inputs:
+  data:
+    simulation:
+      steps: 400
+      timestep: 1.0
+      partitions:
+      - name: lob_flow
+        params:
+          # Identical truth to cfg/lob_recovery.yaml — pinned by
+          # TestSmcTruthMatchesTheOtherConfig so the two cannot drift apart and stop
+          # being comparable.
+          limit_rate: [1.2]
+          cancel_rate: [0.15]
+          market_rate: [0.8]
+          touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+          half: [0.5]
+        init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+        state_history_depth: 1
+        seed: 20260728
+      expressions:
+      - partition: lob_flow
+        fields:
+        - {name: q, width: 6}
+        - {name: n_limit}
+        - {name: n_cancel}
+        - {name: n_market}
+        - {name: depth_start}
+        bindings:
+        - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+        - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+        - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+        - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+        - {name: mkt_ask, expr: "mkt - mkt_bid"}
+        - {name: resting, expr: "q - cancels + arrivals"}
+        - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+        outputs:
+        - "resting - takes"
+        - "sum(arrivals)"
+        - "sum(cancels)"
+        - "mkt"
+        - "sum(q)"
 macros:
 - type: smc_inference
   proposal_name: smc_proposals

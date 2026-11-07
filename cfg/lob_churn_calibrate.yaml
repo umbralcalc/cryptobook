@@ -22,9 +22,10 @@
 #                   particle coordinate. This partition is what a Poisson likelihood ignores.
 # lob_loglike    -> data_comparison against the recorded counts, reading mean and variance
 #                   from the two partitions above.
-data:
-  source:
-    json_log: {path: RECORDED_SEGMENT_PATH}
+inputs:
+  data:
+    source:
+      json_log: {path: RECORDED_SEGMENT_PATH}
 macros:
 - type: smc_inference
   proposal_name: smc_proposals

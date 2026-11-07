@@ -51,51 +51,53 @@
 #     forgotten each step.
 #   - cov_burn_in_steps 200 — use the fixed proposal width until the posterior
 #     variance is worth trusting, then adapt to it.
-data:
-  steps: 2000
-  timestep: 1.0
-  partitions:
-  - name: lob_flow
-    params:
-      # THE RECOVERY TARGET. Keep in sync with the truth asserted in
-      # pkg/recovery/behaviour.go — that file is the single source of both.
-      limit_rate: [1.2]
-      cancel_rate: [0.15]
-      market_rate: [0.8]
-      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      half: [0.5]
-    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
-    # 1 is enough: the generator's expression reads only its own current fields.
-    # The window replay does NOT come from here — it comes from storage, with its
-    # own history depth set by window_data_history_depth below.
-    state_history_depth: 1
-    seed: 20260728
-  expressions:
-  # Identical to cfg/lob_generator.yaml's block. Duplicated rather than included
-  # because a config is one self-contained document; if they diverge, the
-  # equivalence subtest in pkg/recovery fails.
-  - partition: lob_flow
-    fields:
-    - {name: q, width: 6}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    bindings:
-    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
-    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
-    - {name: mkt_ask, expr: "mkt - mkt_bid"}
-    - {name: resting, expr: "q - cancels + arrivals"}
-    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
-    outputs:
-    - "resting - takes"
-    - "sum(arrivals)"
-    - "sum(cancels)"
-    - "mkt"
-    - "sum(q)"
+inputs:
+  data:
+    simulation:
+      steps: 2000
+      timestep: 1.0
+      partitions:
+      - name: lob_flow
+        params:
+          # THE RECOVERY TARGET. Keep in sync with the truth asserted in
+          # pkg/recovery/behaviour.go — that file is the single source of both.
+          limit_rate: [1.2]
+          cancel_rate: [0.15]
+          market_rate: [0.8]
+          touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+          touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+          half: [0.5]
+        init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+        # 1 is enough: the generator's expression reads only its own current fields.
+        # The window replay does NOT come from here — it comes from storage, with its
+        # own history depth set by window_data_history_depth below.
+        state_history_depth: 1
+        seed: 20260728
+      expressions:
+      # Identical to cfg/lob_generator.yaml's block. Duplicated rather than included
+      # because a config is one self-contained document; if they diverge, the
+      # equivalence subtest in pkg/recovery fails.
+      - partition: lob_flow
+        fields:
+        - {name: q, width: 6}
+        - {name: n_limit}
+        - {name: n_cancel}
+        - {name: n_market}
+        - {name: depth_start}
+        bindings:
+        - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+        - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+        - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+        - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+        - {name: mkt_ask, expr: "mkt - mkt_bid"}
+        - {name: resting, expr: "q - cancels + arrivals"}
+        - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+        outputs:
+        - "resting - takes"
+        - "sum(arrivals)"
+        - "sum(cancels)"
+        - "mkt"
+        - "sum(q)"
 macros:
 - type: posterior_estimation
   log_norm: {name: lob_post_log_norm, default: 0.0}
