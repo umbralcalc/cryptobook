@@ -4,7 +4,7 @@ go 1.25.2
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/umbralcalc/stochadex v0.29.2
+	github.com/umbralcalc/stochadex v0.30.0
 )
 
 require (
