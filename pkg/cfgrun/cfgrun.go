@@ -54,7 +54,7 @@ func ConfigDir() string {
 	return filepath.Join(filepath.Dir(thisFile), "..", "..", "cfg")
 }
 
-// Run loads the named config from cfg/, applies subs, and runs it — main:
+// Run loads the named config from cfg/, applies subs, and runs it — main run
 // partitions, macros: or both — returning the storage it produced.
 func Run(name string, subs Subs) (*simulator.StateTimeStorage, error) {
 	result, err := runSubstituted(name, subs, "")

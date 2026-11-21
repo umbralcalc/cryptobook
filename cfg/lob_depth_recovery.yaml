@@ -29,54 +29,53 @@
 # back — with no price and no direction anywhere in it. the framing
 # discipline is easy to hold here because the model has no price process to
 # violate it with.
-main:
-  partitions:
-  - name: lob_flow
-    params:
-      limit_rate: [1.2]
-      cancel_rate: [0.15]
-      market_rate: [0.8]
-      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      half: [0.5]
-      # The liquidity event: at this step, this fraction of resting volume survives.
-      # 0.1 removes 90% of the book at once — large enough that the recovery is not
-      # lost in the ordinary step-to-step noise.
-      shock_step: [200.0]
-      survive_fraction: [0.1]
-    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
-    state_history_depth: 1
-    seed: 20260728
-  expressions:
-  - partition: lob_flow
-    fields:
-    - {name: q, width: 6}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    bindings:
-    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
-    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
-    - {name: mkt_ask, expr: "mkt - mkt_bid"}
-    - {name: resting, expr: "q - cancels + arrivals"}
-    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
-    - {name: next_q, expr: "resting - takes"}
-    outputs:
-    # The shock is applied to the ladder as it would have been, so the step's own
-    # flow counts stay honest — the event removes resting liquidity, it does not
-    # retroactively change the arrivals and cancellations that happened during the
-    # step. `step` is scalar and broadcasts across the 6-wide ladder.
-    - "where(step == shock_step, next_q * survive_fraction, next_q)"
-    - "sum(arrivals)"
-    - "sum(cancels)"
-    - "mkt"
-    - "sum(q)"
-  simulation:
-    termination_condition: {type: number_of_steps, max_steps: 400}
-    timestep_function: {type: constant, stepsize: 1.0}
-    init_time_value: 0.0
+partitions:
+- name: lob_flow
+  params:
+    limit_rate: [1.2]
+    cancel_rate: [0.15]
+    market_rate: [0.8]
+    touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    half: [0.5]
+    # The liquidity event: at this step, this fraction of resting volume survives.
+    # 0.1 removes 90% of the book at once — large enough that the recovery is not
+    # lost in the ordinary step-to-step noise.
+    shock_step: [200.0]
+    survive_fraction: [0.1]
+  init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+  state_history_depth: 1
+  seed: 20260728
+expressions:
+- partition: lob_flow
+  fields:
+  - {name: q, width: 6}
+  - {name: n_limit}
+  - {name: n_cancel}
+  - {name: n_market}
+  - {name: depth_start}
+  bindings:
+  - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+  - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+  - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+  - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+  - {name: mkt_ask, expr: "mkt - mkt_bid"}
+  - {name: resting, expr: "q - cancels + arrivals"}
+  - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+  - {name: next_q, expr: "resting - takes"}
+  outputs:
+  # The shock is applied to the ladder as it would have been, so the step's own
+  # flow counts stay honest — the event removes resting liquidity, it does not
+  # retroactively change the arrivals and cancellations that happened during the
+  # step. `step` is scalar and broadcasts across the 6-wide ladder.
+  - "where(step == shock_step, next_q * survive_fraction, next_q)"
+  - "sum(arrivals)"
+  - "sum(cancels)"
+  - "mkt"
+  - "sum(q)"
+simulation:
+  termination_condition: {type: number_of_steps, max_steps: 400}
+  timestep_function: {type: constant, stepsize: 1.0}
+  init_time_value: 0.0
 outputs:
 - {name: output, condition: {type: every_step}, function: {type: stdout}}

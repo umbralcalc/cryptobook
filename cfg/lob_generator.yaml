@@ -45,58 +45,57 @@
 # depth_start is at the start, not the end, on purpose: it is the depth the
 # cancellations in this same row were actually drawn against, which is what makes
 # the row self-contained for inference. cfg/lob_recovery.yaml depends on this.
-main:
-  partitions:
-  - name: lob_flow
-    params:
-      limit_rate: [1.2]        # per level, per unit time
-      cancel_rate: [0.15]      # per resting unit, per unit time
-      market_rate: [0.8]       # per unit time, both sides combined
-      # The ladder geometry as data: which slots are the touch of each side. Masks
-      # rather than indices because everything here is elementwise over the 6-wide
-      # ladder, so "add at the touch" is a multiply.
-      touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-      touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-      half: [0.5]
-    # Start at the stationary per-level depth, limit_rate/cancel_rate = 8, so the
-    # run needs no burn-in before the counts are informative.
-    init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
-    state_history_depth: 1
-    seed: 20260728
-  expressions:
-  - partition: lob_flow
-    fields:
-    - {name: q, width: 6}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    bindings:
-    # iid, not a bare poisson: limit_rate * dt is scalar, so the draw's width would
-    # be ambiguous and the run would panic. iid(6, ...) says "6 independent draws",
-    # which is the intended reading — one arrival stream per level.
-    - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
-    # No wrapper needed here: cancel_rate * q * dt is already 6-wide, so the draw
-    # is elementwise per level. min(q, ...) clips a draw that would over-cancel a
-    # thin level — Poisson is unbounded above and volume cannot go negative.
-    - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
-    - {name: mkt_ask, expr: "mkt - mkt_bid"}
-    # Cancellations are drawn against the queue as it stood at the start of the
-    # step, then arrivals join, then market orders consume. The order matters and
-    # this is the one chosen: an order cannot be cancelled before it arrives.
-    - {name: resting, expr: "q - cancels + arrivals"}
-    - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
-    outputs:
-    - "resting - takes"
-    - "sum(arrivals)"
-    - "sum(cancels)"
-    - "mkt"
-    - "sum(q)"                 # q is still the START-of-step ladder here
-  simulation:
-    termination_condition: {type: number_of_steps, max_steps: 200}
-    timestep_function: {type: constant, stepsize: 1.0}
-    init_time_value: 0.0
+partitions:
+- name: lob_flow
+  params:
+    limit_rate: [1.2]        # per level, per unit time
+    cancel_rate: [0.15]      # per resting unit, per unit time
+    market_rate: [0.8]       # per unit time, both sides combined
+    # The ladder geometry as data: which slots are the touch of each side. Masks
+    # rather than indices because everything here is elementwise over the 6-wide
+    # ladder, so "add at the touch" is a multiply.
+    touch_bid: [1.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    touch_ask: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+    half: [0.5]
+  # Start at the stationary per-level depth, limit_rate/cancel_rate = 8, so the
+  # run needs no burn-in before the counts are informative.
+  init_state_values: [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 0.0, 0.0, 0.0, 48.0]
+  state_history_depth: 1
+  seed: 20260728
+expressions:
+- partition: lob_flow
+  fields:
+  - {name: q, width: 6}
+  - {name: n_limit}
+  - {name: n_cancel}
+  - {name: n_market}
+  - {name: depth_start}
+  bindings:
+  # iid, not a bare poisson: limit_rate * dt is scalar, so the draw's width would
+  # be ambiguous and the run would panic. iid(6, ...) says "6 independent draws",
+  # which is the intended reading — one arrival stream per level.
+  - {name: arrivals, expr: "iid(6, poisson(limit_rate * dt))"}
+  # No wrapper needed here: cancel_rate * q * dt is already 6-wide, so the draw
+  # is elementwise per level. min(q, ...) clips a draw that would over-cancel a
+  # thin level — Poisson is unbounded above and volume cannot go negative.
+  - {name: cancels, expr: "min(q, poisson(cancel_rate * q * dt))"}
+  - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+  - {name: mkt_bid, expr: "shared(binomial(mkt, half))"}
+  - {name: mkt_ask, expr: "mkt - mkt_bid"}
+  # Cancellations are drawn against the queue as it stood at the start of the
+  # step, then arrivals join, then market orders consume. The order matters and
+  # this is the one chosen: an order cannot be cancelled before it arrives.
+  - {name: resting, expr: "q - cancels + arrivals"}
+  - {name: takes, expr: "min(resting, mkt_bid * touch_bid + mkt_ask * touch_ask)"}
+  outputs:
+  - "resting - takes"
+  - "sum(arrivals)"
+  - "sum(cancels)"
+  - "mkt"
+  - "sum(q)"                 # q is still the START-of-step ladder here
+simulation:
+  termination_condition: {type: number_of_steps, max_steps: 200}
+  timestep_function: {type: constant, stepsize: 1.0}
+  init_time_value: 0.0
 outputs:
 - {name: output, condition: {type: every_step}, function: {type: stdout}}

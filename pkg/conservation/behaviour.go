@@ -76,7 +76,7 @@ const (
 )
 
 var (
-	rePartition = regexp.MustCompile(`(?m)^\s+- name: (\w+)\s*$`)
+	rePartition = regexp.MustCompile(`(?m)^\s*- name: (\w+)\s*$`)
 	reAgeWidth  = regexp.MustCompile(`\{name: ages, width: (\d+)\}`)
 	reNcoh      = regexp.MustCompile(`ncoh: \[([\d.]+)\]`)
 	// The width the config actually uses to sum a level's cohorts. Parsed rather than
