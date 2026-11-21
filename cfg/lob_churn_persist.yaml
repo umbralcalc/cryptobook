@@ -10,37 +10,36 @@
 # gamma's 6.5625. That smaller dispersion is CH's truth. The counts stay marginally
 # gamma-Poisson (Var = mean + phi_marginal*mean^2) but are now AUTOCORRELATED across steps —
 # which the per-step likelihood neither models nor sees.
-main:
-  partitions:
-  - name: lob_flow
-    params:
-      limit_rate: [3.381]
-      churn_rate: [1.900]
-      market_rate: [0.8]
-      persistence: [0.8]
-      activity_shape: [0.152367]
-      activity_rate: [0.038092]
-    init_state_values: [0.0, 0.0, 0.0, 4.0]
-    state_history_depth: 1
-    seed: 20260830
-  expressions:
-  - partition: lob_flow
-    fields:
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: driver}
-    bindings:
-    # `driver` bare is row 0 = the previous step's output. The AR(1) recursion.
-    - {name: act, expr: "shared(persistence * driver + (1 - persistence) * gamma(activity_shape, activity_rate))"}
-    outputs:
-    - "shared(poisson(limit_rate * act * dt))"
-    - "shared(poisson(churn_rate * act * dt))"
-    - "shared(poisson(market_rate * dt))"
-    - "act"
-  simulation:
-    termination_condition: {type: number_of_steps, max_steps: 400}
-    timestep_function: {type: constant, stepsize: 1.0}
-    init_time_value: 0.0
+partitions:
+- name: lob_flow
+  params:
+    limit_rate: [3.381]
+    churn_rate: [1.900]
+    market_rate: [0.8]
+    persistence: [0.8]
+    activity_shape: [0.152367]
+    activity_rate: [0.038092]
+  init_state_values: [0.0, 0.0, 0.0, 4.0]
+  state_history_depth: 1
+  seed: 20260830
+expressions:
+- partition: lob_flow
+  fields:
+  - {name: n_limit}
+  - {name: n_cancel}
+  - {name: n_market}
+  - {name: driver}
+  bindings:
+  # `driver` bare is row 0 = the previous step's output. The AR(1) recursion.
+  - {name: act, expr: "shared(persistence * driver + (1 - persistence) * gamma(activity_shape, activity_rate))"}
+  outputs:
+  - "shared(poisson(limit_rate * act * dt))"
+  - "shared(poisson(churn_rate * act * dt))"
+  - "shared(poisson(market_rate * dt))"
+  - "act"
+simulation:
+  termination_condition: {type: number_of_steps, max_steps: 400}
+  timestep_function: {type: constant, stepsize: 1.0}
+  init_time_value: 0.0
 outputs:
 - {name: output, condition: {type: every_step}, function: {type: stdout}}

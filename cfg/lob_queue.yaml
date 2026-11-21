@@ -61,85 +61,84 @@
 # Queue position is UNOBSERVABLE in the permitted feed at any bucket size: a Binance diff
 # stream gives aggregated volume per price and never per-order identity or arrival order.
 # This is a MODEL COUNTERFACTUAL and nothing else. No limb of it is compared to market data.
-main:
-  partitions:
-  - name: lob_queue
-    params:
-      # Arrival intensity at the innermost level, per unit tick, decaying outwards.
-      limit_rate: [1.2]
-      arrival_decay: [0.35]
-      # Per resting order, per step. Reads NOTHING about position — that is what makes
-      # BX a real test rather than a tautology.
-      cancel_prob: [0.15]
-      # Marketable orders per unit time across both sides, split evenly.
-      market_rate: [1.0]
-      half: [0.5]
-      # THE REGIME KNOB. 1.0 is the reference; pkg/queue substitutes 0.5 and 2.0.
-      tick: [1.0]
-    init_state_values:
-      [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
-       1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
-       0, 0, 0, 0, 0, 0, 0]
-    state_history_depth: 1
-    seed: 20260830
-  expressions:
-  - partition: lob_queue
-    fields:
-    - {name: slots, width: 64}
-    # Numerator/denominator pairs rather than ratios: a per-step mean position is undefined
-    # on a step where nothing was hit or cancelled, and averaging defined-only steps would
-    # silently weight thin steps equally with busy ones. pkg/queue pools them.
-    - {name: rest_pos_sum}
-    - {name: rest_count}
-    - {name: fill_pos_sum}
-    - {name: fill_count}
-    - {name: cancel_pos_sum}
-    - {name: cancel_count}
-    - {name: deep_count}
-    bindings:
-    # Per-slot coordinates, computed once.
-    - {name: side, expr: "each(64, i, floor(i / 32))"}
-    - {name: grp, expr: "each(64, i, floor(i / 8))"}
-    - {name: pos, expr: "each(64, i, i - 8 * floor(i / 8))"}
-    - {name: lvl, expr: "grp - 4 * side"}
-    # Consumption order within a side: level-major, front-first inside a level. This single
-    # quantity is what gives price-time priority — nearest level first, oldest order first.
-    - {name: ord, expr: "lvl * 8 + pos"}
-    - {name: occ, expr: "where(slots > 0, 1, 0)"}
-    # 1. MARKETABLE FLOW. Buys consume the ask side, sells the bid side.
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
-    - {name: sweep, expr: "each(64, i, where(slice(side, i, 1) > 0, mkt_buy, mkt - mkt_buy))"}
-    # How many resting orders sit ahead of this one on its own side. A sum of an
-    # elementwise product — no scan, and the prefix is exact rather than approximate.
-    - {name: ahead, expr: "each(64, i, sum(where(side == slice(side, i, 1), 1, 0) * where(ord < slice(ord, i, 1), 1, 0) * occ))"}
-    - {name: hit, expr: "occ * where(ahead < sweep, 1, 0)"}
-    # 2. CANCELLATION, over what the trade did not take.
-    - {name: alive, expr: "occ - hit"}
-    - {name: cancel, expr: "binomial(alive, cancel_prob)"}
-    - {name: survive, expr: "alive - cancel"}
-    # 3. COMPACTION. dest is each survivor's new position: how many survivors are ahead of
-    # it WITHIN ITS OWN LEVEL. Scattering by dest preserves relative order, which is what
-    # makes this a queue rather than a bag.
-    - {name: dest, expr: "each(64, i, sum(where(grp == slice(grp, i, 1), 1, 0) * where(pos < slice(pos, i, 1), 1, 0) * survive))"}
-    - {name: compacted, expr: "each(64, k, sum(where(grp == floor(k / 8), 1, 0) * survive * where(dest == k - 8 * floor(k / 8), 1, 0)))"}
-    # 4. ARRIVALS, appended behind the survivors. Level index within a side is g - 4*(g/4).
-    - {name: nsurv, expr: "each(8, g, sum(where(grp == g, survive, 0)))"}
-    - {name: arr, expr: "each(8, g, poisson(limit_rate * tick * exp(-arrival_decay * tick * (g - 4 * floor(g / 4))) * dt))"}
-    - {name: appended, expr: "each(64, k, where(k - 8 * floor(k / 8) >= slice(nsurv, floor(k / 8), 1), 1, 0) * where(k - 8 * floor(k / 8) < slice(nsurv, floor(k / 8), 1) + slice(arr, floor(k / 8), 1), 1, 0))"}
-    - {name: next_slots, expr: "min(compacted + appended, 1)"}
-    outputs:
-    - "next_slots"
-    - "sum(pos * occ)"
-    - "sum(occ)"
-    - "sum(pos * hit)"
-    - "sum(hit)"
-    - "sum(pos * cancel)"
-    - "sum(cancel)"
-    - "sum(where(pos >= 4, occ, 0))"
-  simulation:
-    termination_condition: {type: number_of_steps, max_steps: 400}
-    timestep_function: {type: constant, stepsize: 1.0}
-    init_time_value: 0.0
+partitions:
+- name: lob_queue
+  params:
+    # Arrival intensity at the innermost level, per unit tick, decaying outwards.
+    limit_rate: [1.2]
+    arrival_decay: [0.35]
+    # Per resting order, per step. Reads NOTHING about position — that is what makes
+    # BX a real test rather than a tautology.
+    cancel_prob: [0.15]
+    # Marketable orders per unit time across both sides, split evenly.
+    market_rate: [1.0]
+    half: [0.5]
+    # THE REGIME KNOB. 1.0 is the reference; pkg/queue substitutes 0.5 and 2.0.
+    tick: [1.0]
+  init_state_values:
+    [1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+     1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0,
+     0, 0, 0, 0, 0, 0, 0]
+  state_history_depth: 1
+  seed: 20260830
+expressions:
+- partition: lob_queue
+  fields:
+  - {name: slots, width: 64}
+  # Numerator/denominator pairs rather than ratios: a per-step mean position is undefined
+  # on a step where nothing was hit or cancelled, and averaging defined-only steps would
+  # silently weight thin steps equally with busy ones. pkg/queue pools them.
+  - {name: rest_pos_sum}
+  - {name: rest_count}
+  - {name: fill_pos_sum}
+  - {name: fill_count}
+  - {name: cancel_pos_sum}
+  - {name: cancel_count}
+  - {name: deep_count}
+  bindings:
+  # Per-slot coordinates, computed once.
+  - {name: side, expr: "each(64, i, floor(i / 32))"}
+  - {name: grp, expr: "each(64, i, floor(i / 8))"}
+  - {name: pos, expr: "each(64, i, i - 8 * floor(i / 8))"}
+  - {name: lvl, expr: "grp - 4 * side"}
+  # Consumption order within a side: level-major, front-first inside a level. This single
+  # quantity is what gives price-time priority — nearest level first, oldest order first.
+  - {name: ord, expr: "lvl * 8 + pos"}
+  - {name: occ, expr: "where(slots > 0, 1, 0)"}
+  # 1. MARKETABLE FLOW. Buys consume the ask side, sells the bid side.
+  - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+  - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+  - {name: sweep, expr: "each(64, i, where(slice(side, i, 1) > 0, mkt_buy, mkt - mkt_buy))"}
+  # How many resting orders sit ahead of this one on its own side. A sum of an
+  # elementwise product — no scan, and the prefix is exact rather than approximate.
+  - {name: ahead, expr: "each(64, i, sum(where(side == slice(side, i, 1), 1, 0) * where(ord < slice(ord, i, 1), 1, 0) * occ))"}
+  - {name: hit, expr: "occ * where(ahead < sweep, 1, 0)"}
+  # 2. CANCELLATION, over what the trade did not take.
+  - {name: alive, expr: "occ - hit"}
+  - {name: cancel, expr: "binomial(alive, cancel_prob)"}
+  - {name: survive, expr: "alive - cancel"}
+  # 3. COMPACTION. dest is each survivor's new position: how many survivors are ahead of
+  # it WITHIN ITS OWN LEVEL. Scattering by dest preserves relative order, which is what
+  # makes this a queue rather than a bag.
+  - {name: dest, expr: "each(64, i, sum(where(grp == slice(grp, i, 1), 1, 0) * where(pos < slice(pos, i, 1), 1, 0) * survive))"}
+  - {name: compacted, expr: "each(64, k, sum(where(grp == floor(k / 8), 1, 0) * survive * where(dest == k - 8 * floor(k / 8), 1, 0)))"}
+  # 4. ARRIVALS, appended behind the survivors. Level index within a side is g - 4*(g/4).
+  - {name: nsurv, expr: "each(8, g, sum(where(grp == g, survive, 0)))"}
+  - {name: arr, expr: "each(8, g, poisson(limit_rate * tick * exp(-arrival_decay * tick * (g - 4 * floor(g / 4))) * dt))"}
+  - {name: appended, expr: "each(64, k, where(k - 8 * floor(k / 8) >= slice(nsurv, floor(k / 8), 1), 1, 0) * where(k - 8 * floor(k / 8) < slice(nsurv, floor(k / 8), 1) + slice(arr, floor(k / 8), 1), 1, 0))"}
+  - {name: next_slots, expr: "min(compacted + appended, 1)"}
+  outputs:
+  - "next_slots"
+  - "sum(pos * occ)"
+  - "sum(occ)"
+  - "sum(pos * hit)"
+  - "sum(hit)"
+  - "sum(pos * cancel)"
+  - "sum(cancel)"
+  - "sum(where(pos >= 4, occ, 0))"
+simulation:
+  termination_condition: {type: number_of_steps, max_steps: 400}
+  timestep_function: {type: constant, stepsize: 1.0}
+  init_time_value: 0.0
 outputs:
 - {name: output, condition: {type: every_step}, function: {type: stdout}}

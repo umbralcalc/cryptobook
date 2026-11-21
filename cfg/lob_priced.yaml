@@ -48,98 +48,97 @@
 # FIRST OCCUPIED LEVEL. Exactly one level has both "I am occupied" and "nothing in
 # front of me is occupied", so a dot product against the lane indices picks it out.
 # An empty side needs its own guard, or it reports level 0.
-main:
-  partitions:
-  - name: lob_priced
-    params:
-      # Arrival intensity at the innermost level, decaying outwards.
-      limit_rate: [2.0]
-      arrival_decay: [0.35]
-      # Per resting unit, per unit time.
-      cancel_rate: [0.25]
-      # Marketable order arrivals per unit time (both sides), and the size of one.
-      market_rate: [1.2]
-      market_size: [4.0]
-      half: [0.5]
-      # Reported when a side is empty: wider than any real spread on this ladder,
-      # so it cannot be mistaken for a tight book.
-      empty_spread: [99.0]
-      # A one-off large marketable buy, for the liquidity-survival output. The
-      # default step of -1 never matches, so the base model is unshocked and the
-      # spread claims measure ordinary dynamics rather than a perturbed book.
-      shock_step: [-1.0]
-      shock_size: [0.0]
-    # Eight levels a side. Starting at the stationary depth of the innermost level
-    # keeps the early steps informative without a burn-in.
-    init_state_values:
-      [8, 6, 4, 3, 2, 1, 1, 1,
-       8, 6, 4, 3, 2, 1, 1, 1,
-       0, 0, 0, 52, 2]
-    state_history_depth: 1
-    seed: 20260729
-  expressions:
-  - partition: lob_priced
-    fields:
-    - {name: bid, width: 8}
-    - {name: ask, width: 8}
-    - {name: n_limit}
-    - {name: n_cancel}
-    - {name: n_market}
-    - {name: depth_start}
-    - {name: spread_ticks}
-    bindings:
-    # Draws inside `each` are already explicit — the lane is scalar — so poisson()
-    # needs no shared()/iid() wrapper here, unlike at the top level.
-    - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
-    - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
-    - {name: can_bid, expr: "min(bid, poisson(cancel_rate * bid * dt))"}
-    - {name: can_ask, expr: "min(ask, poisson(cancel_rate * ask * dt))"}
+partitions:
+- name: lob_priced
+  params:
+    # Arrival intensity at the innermost level, decaying outwards.
+    limit_rate: [2.0]
+    arrival_decay: [0.35]
+    # Per resting unit, per unit time.
+    cancel_rate: [0.25]
+    # Marketable order arrivals per unit time (both sides), and the size of one.
+    market_rate: [1.2]
+    market_size: [4.0]
+    half: [0.5]
+    # Reported when a side is empty: wider than any real spread on this ladder,
+    # so it cannot be mistaken for a tight book.
+    empty_spread: [99.0]
+    # A one-off large marketable buy, for the liquidity-survival output. The
+    # default step of -1 never matches, so the base model is unshocked and the
+    # spread claims measure ordinary dynamics rather than a perturbed book.
+    shock_step: [-1.0]
+    shock_size: [0.0]
+  # Eight levels a side. Starting at the stationary depth of the innermost level
+  # keeps the early steps informative without a burn-in.
+  init_state_values:
+    [8, 6, 4, 3, 2, 1, 1, 1,
+     8, 6, 4, 3, 2, 1, 1, 1,
+     0, 0, 0, 52, 2]
+  state_history_depth: 1
+  seed: 20260729
+expressions:
+- partition: lob_priced
+  fields:
+  - {name: bid, width: 8}
+  - {name: ask, width: 8}
+  - {name: n_limit}
+  - {name: n_cancel}
+  - {name: n_market}
+  - {name: depth_start}
+  - {name: spread_ticks}
+  bindings:
+  # Draws inside `each` are already explicit — the lane is scalar — so poisson()
+  # needs no shared()/iid() wrapper here, unlike at the top level.
+  - {name: arr_bid, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
+  - {name: arr_ask, expr: "each(8, i, poisson(limit_rate * exp(-arrival_decay * i) * dt))"}
+  - {name: can_bid, expr: "min(bid, poisson(cancel_rate * bid * dt))"}
+  - {name: can_ask, expr: "min(ask, poisson(cancel_rate * ask * dt))"}
 
-    # Marketable flow, split between the sides. A buy lifts asks, a sell hits bids.
-    - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
-    - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
-    # The shock rides in as extra buy volume, so it sweeps the ask side through
-    # exactly the same book-walking path as ordinary marketable flow — no second
-    # mechanism to reason about.
-    - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
-    - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
+  # Marketable flow, split between the sides. A buy lifts asks, a sell hits bids.
+  - {name: mkt, expr: "shared(poisson(market_rate * dt))"}
+  - {name: mkt_buy, expr: "shared(binomial(mkt, half))"}
+  # The shock rides in as extra buy volume, so it sweeps the ask side through
+  # exactly the same book-walking path as ordinary marketable flow — no second
+  # mechanism to reason about.
+  - {name: buy_size, expr: "mkt_buy * market_size + where(step == shock_step, shock_size, 0)"}
+  - {name: sell_size, expr: "(mkt - mkt_buy) * market_size"}
 
-    # Cancellations act on the book as it stood; arrivals then join; the marketable
-    # order sweeps what is left. An order cannot be cancelled before it arrives.
-    - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
-    - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
+  # Cancellations act on the book as it stood; arrivals then join; the marketable
+  # order sweeps what is left. An order cannot be cancelled before it arrives.
+  - {name: rest_bid, expr: "bid - can_bid + arr_bid"}
+  - {name: rest_ask, expr: "ask - can_ask + arr_ask"}
 
-    # THE SWEEP. cumsum[i] is the volume in front of level i, so a level absorbs
-    # only what the order has left when it reaches there.
-    - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
-    - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
-    - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
-    - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
-    - {name: next_bid, expr: "rest_bid - hit_bid"}
-    - {name: next_ask, expr: "rest_ask - hit_ask"}
+  # THE SWEEP. cumsum[i] is the volume in front of level i, so a level absorbs
+  # only what the order has left when it reaches there.
+  - {name: cum_bid, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_bid, 0, max(i, 1)))))"}
+  - {name: cum_ask, expr: "each(8, i, where(i == 0, 0, sum(slice(rest_ask, 0, max(i, 1)))))"}
+  - {name: hit_bid, expr: "clamp(sell_size - cum_bid, 0, rest_bid)"}
+  - {name: hit_ask, expr: "clamp(buy_size - cum_ask, 0, rest_ask)"}
+  - {name: next_bid, expr: "rest_bid - hit_bid"}
+  - {name: next_ask, expr: "rest_ask - hit_ask"}
 
-    # THE TOUCH. The innermost occupied level on each side, and hence the spread.
-    - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
-    - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
-    - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
-    - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
-    - {name: idx, expr: "each(8, i, i)"}
-    - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
-    - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
-    - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
-    outputs:
-    - "next_bid"
-    - "next_ask"
-    - "sum(arr_bid) + sum(arr_ask)"
-    - "sum(can_bid) + sum(can_ask)"
-    - "sum(hit_bid) + sum(hit_ask)"
-    - "sum(bid) + sum(ask)"
-    # Level i sits i+1 ticks from the mid, so a two-sided book's spread is
-    # best_bid + best_ask + 2 ticks. A one-sided book has no spread to report.
-    - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
-  simulation:
-    termination_condition: {type: number_of_steps, max_steps: 400}
-    timestep_function: {type: constant, stepsize: 1.0}
-    init_time_value: 0.0
+  # THE TOUCH. The innermost occupied level on each side, and hence the spread.
+  - {name: occ_bid, expr: "where(next_bid > 0, 1, 0)"}
+  - {name: occ_ask, expr: "where(next_ask > 0, 1, 0)"}
+  - {name: front_bid, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_bid, 0, max(i, 1))) == 0, 1, 0)))"}
+  - {name: front_ask, expr: "each(8, i, where(i == 0, 1, where(sum(slice(occ_ask, 0, max(i, 1))) == 0, 1, 0)))"}
+  - {name: idx, expr: "each(8, i, i)"}
+  - {name: best_bid, expr: "dot(idx, occ_bid * front_bid)"}
+  - {name: best_ask, expr: "dot(idx, occ_ask * front_ask)"}
+  - {name: two_sided, expr: "where(sum(occ_bid) * sum(occ_ask) > 0, 1, 0)"}
+  outputs:
+  - "next_bid"
+  - "next_ask"
+  - "sum(arr_bid) + sum(arr_ask)"
+  - "sum(can_bid) + sum(can_ask)"
+  - "sum(hit_bid) + sum(hit_ask)"
+  - "sum(bid) + sum(ask)"
+  # Level i sits i+1 ticks from the mid, so a two-sided book's spread is
+  # best_bid + best_ask + 2 ticks. A one-sided book has no spread to report.
+  - "where(two_sided > 0, best_bid + best_ask + 2, empty_spread)"
+simulation:
+  termination_condition: {type: number_of_steps, max_steps: 400}
+  timestep_function: {type: constant, stepsize: 1.0}
+  init_time_value: 0.0
 outputs:
 - {name: output, condition: {type: every_step}, function: {type: stdout}}
